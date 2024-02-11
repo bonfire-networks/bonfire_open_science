@@ -1,0 +1,10 @@
+digraph "xref graph" {
+  "lib/fake.ex"
+  "lib/integration.ex"
+  "lib/migrations.ex"
+  "lib/runtime_config.ex"
+  "lib/web/components/hello_live.ex"
+  "lib/web/routes.ex"
+  "lib/web/views/home_live.ex"
+  "lib/web/views/home_live.ex" -> "lib/web/components/hello_live.ex" [label="(export)"]
+}

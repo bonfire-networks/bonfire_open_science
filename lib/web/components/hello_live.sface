@@ -1,0 +1,3 @@
+<div class="max-w-full p-3 prose-sm prose">
+  {l("Welcome to ") <> @extension}
+</div>
