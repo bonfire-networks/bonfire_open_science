@@ -13,6 +13,13 @@ defmodule Bonfire.OpenScience.RuntimeConfig do
     # config :bonfire_open_science,
     #   modularity: :disabled
 
+    config :bonfire, :ui,
+      profile: [
+        navigation: [
+          objects: [media: l("Publications")]
+        ]
+      ]
+
     config :furlex, Furlex.Oembed,
       extra_providers: [
         %{

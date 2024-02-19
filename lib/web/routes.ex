@@ -1,5 +1,21 @@
 defmodule Bonfire.OpenScience.Web.Routes do
+  use Bonfire.Common.Localise
+  import Bonfire.Common.Modularity.DeclareHelpers
+
   def declare_routes, do: nil
+
+  declare_extension("Open Science",
+    emoji: "🔬",
+    default_nav: [
+      __MODULE__
+    ]
+  )
+
+  declare_nav_link(l("Publications"),
+    page: "publications",
+    href: "/feed/explore/media",
+    icon: "document-multiple-01"
+  )
 
   defmacro __using__(_) do
     quote do
