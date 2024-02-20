@@ -14,7 +14,7 @@ defmodule Bonfire.OpenScience.Web.Routes do
   declare_nav_link(l("Publications"),
     page: "publications",
     href: "/feed/explore/media",
-    icon: "document-multiple-01"
+    icon: "carbon:document"
   )
 
   defmacro __using__(_) do

@@ -116,7 +116,7 @@ defmodule Bonfire.OpenScience.APIs do
   def fetch_orcid_data(_, _), do: nil
 
   # TODO: cron job to periodocally query for each user with an orcid and fetch their latest works
-  def fetch_orcid_works(user, metadata) do
+  def fetch_orcid_works(user, metadata, opts \\ []) do
     with {:ok, %{"group" => works} = _data} <- fetch_orcid_data(metadata, "works") do
       works
       |> debug("wwworks")
@@ -126,22 +126,25 @@ defmodule Bonfire.OpenScience.APIs do
           Bonfire.Files.Acts.URLPreviews.maybe_fetch_and_save(
             user,
             e(summary, "url", "value", nil) || "https://orcid.org/#{e(summary, "path", nil)}",
-            update_existing: true,
-            id:
-              DatesTimes.maybe_generate_ulid(
-                # e(summary, "publication-date", nil) ||
-                e(summary, "created-date", "value", nil)
-              ),
-            post_create_fn: fn current_user, media, opts ->
-              Bonfire.Social.Objects.publish(
-                current_user,
-                :create,
-                media,
-                [boundary: "public"],
-                __MODULE__
-              )
-            end,
-            extra: %{orcid: summary}
+            opts
+            |> Keyword.put_new(:update_existing, true)
+            |> Keyword.merge(
+              id:
+                DatesTimes.maybe_generate_ulid(
+                  # e(summary, "publication-date", nil) ||
+                  e(summary, "created-date", "value", nil)
+                ),
+              post_create_fn: fn current_user, media, opts ->
+                Bonfire.Social.Objects.publish(
+                  current_user,
+                  :create,
+                  media,
+                  [boundary: "public"],
+                  __MODULE__
+                )
+              end,
+              extra: %{orcid: summary}
+            )
           )
         end)
       end)
@@ -154,11 +157,11 @@ defmodule Bonfire.OpenScience.APIs do
     fetch_orcid_works(user, media)
   end
 
-  def fetch_orcid_works_all_known_users() do
+  def fetch_orcid_works_all_known_users(opts \\ []) do
     with {:ok, medias} <- Bonfire.Files.Media.many(media_type: "orcid") do
       Enum.map(medias, fn media ->
         case Bonfire.Social.Graph.Aliases.all_subjects_by_object(media) do
-          [%{} = user] -> fetch_orcid_works(user, media)
+          [%{} = user] -> fetch_orcid_works(user, media, opts)
           other -> error(media, "Could not find a user linked this ORCID via an Alias")
         end
       end)
