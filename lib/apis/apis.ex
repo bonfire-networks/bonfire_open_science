@@ -1,7 +1,6 @@
 defmodule Bonfire.OpenScience.APIs do
   alias Furlex.Fetcher
-  import Bonfire.Common.Utils
-  alias Bonfire.Common.HTTP
+  use Bonfire.Common.Utils
   import Untangle
 
   @doi_matcher "10.\d{4,9}\/[-._;()\/:A-Z0-9]+$"
@@ -115,6 +114,7 @@ defmodule Bonfire.OpenScience.APIs do
   def fetch_orcid_works(user, metadata) do
     with {:ok, %{"group" => works} = _data} <- fetch_orcid_data(metadata, "works") do
       works
+      |> debug("wwworks")
       |> Enum.map(fn %{"work-summary" => summaries} ->
         summaries
         |> Enum.map(fn summary ->
@@ -122,6 +122,11 @@ defmodule Bonfire.OpenScience.APIs do
             user,
             e(summary, "url", "value", nil) || "https://orcid.org/#{e(summary, "path", nil)}",
             update_existing: true,
+            id:
+              DatesTimes.maybe_generate_ulid(
+                # e(summary, "publication-date", nil) ||
+                e(summary, "created-date", "value", nil)
+              ),
             post_create_fn: fn current_user, media, opts ->
               Bonfire.Social.Objects.publish(
                 current_user,
