@@ -20,6 +20,13 @@ defmodule Bonfire.OpenScience.RuntimeConfig do
         ]
       ]
 
+    config :bonfire_social_graph, Bonfire.Social.Graph.Aliases,
+      triggers: [
+        add_link: [
+          orcid: Bonfire.OpenScience.APIs
+        ]
+      ]
+
     config :furlex, Furlex.Oembed,
       extra_providers: [
         %{

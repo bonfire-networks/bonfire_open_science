@@ -1,7 +1,12 @@
 defmodule Bonfire.OpenScience.APIs do
-  alias Furlex.Fetcher
   use Bonfire.Common.Utils
+
+  use Oban.Worker,
+    queue: "fetch_open_science",
+    max_attempts: 1
+
   import Untangle
+  alias Furlex.Fetcher
 
   @doi_matcher "10.\d{4,9}\/[-._;()\/:A-Z0-9]+$"
   @pub_id_matchers %{
@@ -142,5 +147,28 @@ defmodule Bonfire.OpenScience.APIs do
       end)
       |> debug()
     end
+  end
+
+  # trigger fetching via other modules (see RuntimeConfig)
+  def trigger(:add_link, user, media) do
+    fetch_orcid_works(user, media)
+  end
+
+  def fetch_orcid_works_all_known_users() do
+    with {:ok, medias} <- Bonfire.Files.Media.many(media_type: "orcid") do
+      Enum.map(medias, fn media ->
+        case Bonfire.Social.Graph.Aliases.all_subjects_by_object(media) do
+          [%{} = user] -> fetch_orcid_works(user, media)
+          other -> error(media, "Could not find a user linked this ORCID via an Alias")
+        end
+      end)
+    end
+  end
+
+  @impl Oban.Worker
+  def perform(_job) do
+    fetch_orcid_works_all_known_users()
+
+    :ok
   end
 end
