@@ -2,7 +2,7 @@ defmodule Bonfire.OpenScience.APIs do
   use Bonfire.Common.Utils
 
   use Oban.Worker,
-    queue: "fetch_open_science",
+    queue: :fetch_open_science,
     max_attempts: 1
 
   import Untangle
