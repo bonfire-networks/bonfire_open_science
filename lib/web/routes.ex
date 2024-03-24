@@ -6,6 +6,7 @@ defmodule Bonfire.OpenScience.Web.Routes do
 
   declare_extension("Open Science",
     emoji: "🔬",
+    description: l("The next generation of digital spaces for open science."),
     default_nav: [
       __MODULE__
     ]
