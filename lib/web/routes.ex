@@ -1,6 +1,7 @@
 defmodule Bonfire.OpenScience.Web.Routes do
   use Bonfire.Common.Localise
   import Bonfire.Common.Modularity.DeclareHelpers
+  import Bonfire.UI.Common.Modularity.DeclareHelpers
 
   def declare_routes, do: nil
 
