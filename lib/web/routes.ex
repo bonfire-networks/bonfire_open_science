@@ -6,6 +6,7 @@ defmodule Bonfire.OpenScience.Web.Routes do
   def declare_routes, do: nil
 
   declare_extension("Open Science",
+    icon: "mingcute:microscope-fill",
     emoji: "🔬",
     description: l("The next generation of digital spaces for open science."),
     default_nav: [
