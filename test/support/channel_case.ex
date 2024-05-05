@@ -17,7 +17,7 @@ defmodule Bonfire.OpenScience.ChannelCase do
 
   use ExUnit.CaseTemplate
 
-  import Bonfire.OpenScience.Integration
+  import Bonfire.OpenScience
 
   using do
     quote do

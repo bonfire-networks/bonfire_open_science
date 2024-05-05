@@ -41,7 +41,7 @@ defmodule Bonfire.OpenScience.ConnCase do
   end
 
   setup tags do
-    import Bonfire.OpenScience.Integration
+    import Bonfire.OpenScience
 
     Bonfire.Common.Test.Interactive.setup_test_repo(tags)
 

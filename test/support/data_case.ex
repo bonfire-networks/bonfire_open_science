@@ -15,7 +15,7 @@ defmodule Bonfire.OpenScience.DataCase do
   """
 
   use ExUnit.CaseTemplate
-  import Bonfire.OpenScience.Integration
+  import Bonfire.OpenScience
 
   using do
     quote do

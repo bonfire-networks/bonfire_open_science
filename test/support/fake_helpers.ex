@@ -6,7 +6,7 @@ defmodule Bonfire.OpenScience.Test.FakeHelpers do
 
   import ExUnit.Assertions
 
-  import Bonfire.OpenScience.Integration
+  import Bonfire.OpenScience
 
   import Bonfire.OpenScience.Fake
 end
