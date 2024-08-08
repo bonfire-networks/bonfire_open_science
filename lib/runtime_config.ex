@@ -27,7 +27,7 @@ defmodule Bonfire.OpenScience.RuntimeConfig do
         ]
       ]
 
-    config :furlex, Furlex.Oembed,
+    config :unfurl, Unfurl.Oembed,
       extra_providers: [
         %{
           "provider_name" => "Wikibase or Crossref",

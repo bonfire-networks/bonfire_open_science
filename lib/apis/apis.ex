@@ -6,7 +6,7 @@ defmodule Bonfire.OpenScience.APIs do
     max_attempts: 1
 
   import Untangle
-  alias Furlex.Fetcher
+  alias Unfurl.Fetcher
 
   @doi_matcher "10.\d{4,9}\/[-._;()\/:A-Z0-9]+$"
   @pub_id_matchers %{
