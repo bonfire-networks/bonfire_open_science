@@ -98,9 +98,9 @@ defmodule Bonfire.OpenScience.APIs do
   def pub_id_and_uri_matchers(), do: @pub_id_and_uri_matchers
   def pub_id_matcher(type), do: pub_id_and_uri_matchers()[type]
 
-  def fetch_orcid_data(metadata, type \\ "record")
+  defp fetch_orcid_data(metadata, type \\ "record")
 
-  def fetch_orcid_data(%{"sub" => orcid_id, "access_token" => access_token}, type) do
+  defp fetch_orcid_data(%{"sub" => orcid_id, "access_token" => access_token}, type) do
     with {:ok, %{body: body}} <-
            HTTP.get("https://pub.orcid.org/v3.0/#{orcid_id}/#{type}", [
              {"Accept", "application/json"},
@@ -112,12 +112,36 @@ defmodule Bonfire.OpenScience.APIs do
     end
   end
 
-  def fetch_orcid_data(%{metadata: %{} = metadata}, type), do: fetch_orcid_data(metadata, type)
-  def fetch_orcid_data(_, _), do: nil
+  defp fetch_orcid_data(%{metadata: %{} = metadata}, type), do: fetch_orcid_data(metadata, type)
+  defp fetch_orcid_data(%{"orcid" => %{} = metadata}, type), do: fetch_orcid_data(metadata, type)
 
-  # TODO: cron job to periodocally query for each user with an orcid and fetch their latest works
-  def fetch_orcid_works(user, metadata, opts \\ []) do
-    with {:ok, %{"group" => works} = _data} <- fetch_orcid_data(metadata, "works") do
+  defp fetch_orcid_data(metadata, types) when is_list(types) do
+    Enum.map(types, &fetch_orcid_data(metadata, &1))
+  end
+
+  defp fetch_orcid_data(_, _), do: nil
+
+  def fetch_orcid_record(user, orcid_user_media, opts \\ []) do
+    with {:ok, %{"person" => _} = data} <-
+           fetch_orcid_data(orcid_user_media, "record") |> debug("reccord"),
+         {:ok, orcid_user_media} <-
+           Bonfire.Files.Media.update(user, orcid_user_media, %{
+             metadata:
+               Map.merge(
+                 e(orcid_user_media, :metadata, %{}),
+                 %{"orcid" => Map.merge(e(orcid_user_media, :metadata, "orcid", %{}), data)}
+               )
+           }) do
+      [orcid_user_media]
+    else
+      e ->
+        error(e)
+        []
+    end
+  end
+
+  def fetch_orcid_works(user, orcid_user_media, opts \\ []) do
+    with {:ok, %{"group" => works} = _data} <- fetch_orcid_data(orcid_user_media, "works") do
       works
       |> debug("wwworks")
       |> Enum.map(fn %{"work-summary" => summaries} ->
@@ -149,20 +173,28 @@ defmodule Bonfire.OpenScience.APIs do
         end)
       end)
       |> debug()
+    else
+      e ->
+        error(e)
+        []
     end
+  end
+
+  def fetch_orcid_latest(user, media, opts \\ []) do
+    fetch_orcid_record(user, media, opts) ++ fetch_orcid_works(user, media, opts)
   end
 
   # trigger fetching via other modules (see RuntimeConfig)
   def trigger(:add_link, user, media) do
-    fetch_orcid_works(user, media)
+    fetch_orcid_latest(user, media)
   end
 
-  def fetch_orcid_works_all_known_users(opts \\ []) do
-    with {:ok, medias} <- Bonfire.Files.Media.many(media_type: "orcid") do
+  def fetch_orcid_for_all_known_scientists(opts \\ []) do
+    with {:ok, medias} <- Bonfire.Files.Media.many(media_type: "orcid") |> debug() do
       Enum.map(medias, fn media ->
-        case Bonfire.Social.Graph.Aliases.all_subjects_by_object(media) do
-          [%{} = user] -> fetch_orcid_works(user, media, opts)
-          other -> error(media, "Could not find a user linked this ORCID via an Alias")
+        case Bonfire.Social.Graph.Aliases.all_subjects_by_object(media) |> debug() do
+          [%{} = user] -> fetch_orcid_latest(user, media, opts)
+          other -> warn(media, "Could not find a user linked this ORCID via an Alias")
         end
       end)
     end
@@ -170,7 +202,8 @@ defmodule Bonfire.OpenScience.APIs do
 
   @impl Oban.Worker
   def perform(_job) do
-    fetch_orcid_works_all_known_users()
+    # cron job to periodically query for each user with an orcid and fetch their latest works
+    fetch_orcid_for_all_known_scientists()
 
     :ok
   end
