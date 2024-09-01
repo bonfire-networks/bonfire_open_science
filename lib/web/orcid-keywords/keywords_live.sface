@@ -1,0 +1,12 @@
+{#case extract_keywords(@metadata)}
+  {#match []}
+  {#match keywords}
+    <div class="keywords-list">
+      <h3 class="uppercase text-sm text-base-content/70 mb-3">{l("Keywords")}</h3>
+      <ul>
+        {#for keyword <- keywords}
+          <li class="badge badge-outline">{keyword}</li>
+        {/for}
+      </ul>
+    </div>
+{/case}

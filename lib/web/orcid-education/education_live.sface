@@ -1,0 +1,30 @@
+<div :if={e(@education, "affiliation-group", nil)}>
+  <h2 class="text-sm font-semibold text-base-content mb-3">Education</h2>
+  <ul>
+    {#for education <- e(@education, "affiliation-group", [])}
+      <li>
+        {#for summary <- e(education, "summaries", [])}
+          <div class="border border-base-content/10 flex flex-col gap-1">
+            <h3 class="p-3 bg-base-content/10 border-b border-base-content/10 text-base font-bold">{e(summary, "education-summary", "organization", "name", nil)} ({e(summary, "education-summary", "organization", "address", "city", nil)}, {e(summary, "education-summary", "organization", "address", "country", nil)})</h3>
+            <div class="flex flex-col gap-1 p-3">
+              <p class="text-sm text-base-content/70">{e(summary, "education-summary", "department-name", nil)}</p>
+              <h3 class="text-sm font-bold">{e(summary, "education-summary", "role-title", nil)}</h3>
+
+              <p class="text-sm text-base-content/70">
+                {#if e(summary, "education-summary", "start-date", nil)}
+                  From
+                  {DatesTimes.format_date(e(summary, "education-summary", "start-date", nil))}
+
+                  {e(summary, "education-summary", "start-date", "day", "value", nil)}/{e(summary, "education-summary", "start-date", "month", "value", nil)}/{e(summary, "education-summary", "start-date", "year", "value", nil)}
+                {/if}
+                {#if e(summary, "education-summary", "end-date", nil)}
+                  to {e(summary, "education-summary", "end-date", "day", "value", nil)}/{e(summary, "education-summary", "end-date", "month", "value", nil)}/{e(summary, "education-summary", "end-date", "year", "value", nil)}
+                {/if}
+              </p>
+            </div>
+          </div>
+        {/for}
+      </li>
+    {/for}
+  </ul>
+</div>

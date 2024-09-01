@@ -1,0 +1,15 @@
+<div class="flex gap-2">
+  <div class="flex flex-1 flex-col gap-2 border border-base-content/10">
+    <h2 class="text-sm uppercase font-semibold border-b border-base-content/10 p-3">{l("Peer reviews")}</h2>
+    <p class="p-3 text-sm text-base-content">
+      <b>{total_peer_reviews(@metadata)}</b> {l("reviews for")} <b>{total_publications_or_grants(@metadata)}</b> {l("publications/grants")}
+    </p>
+  </div>
+
+  <div class="flex flex-1 flex-col gap-2 border border-base-content/10">
+    <h2 class="text-sm uppercase font-semibold border-b border-base-content/10 p-3">{l("Validated works")}</h2>
+    <p class="p-3 text-sm text-base-content">
+      {total_works(@metadata)}
+    </p>
+  </div>
+</div>

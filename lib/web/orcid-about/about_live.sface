@@ -1,0 +1,16 @@
+<div
+  class="w-full"
+  :for={%{edge: %{object: %{id: _id, media_type: type, path: path, metadata: metadata}}} <- @aliases}
+>
+  {#case type}
+    {#match "orcid"}
+      <div class="flex flex-col gap-4">
+        <Bonfire.OpenScience.Orcid.PreviewLive metadata={metadata} />
+        <Bonfire.OpenScience.Orcid.KeywordsLive metadata={metadata} />
+        <Bonfire.OpenScience.Orcid.EducationLive education={metadata["orcid"]["activities-summary"]["educations"]} />
+        <Bonfire.OpenScience.Orcid.EmploymentLive employment={metadata["orcid"]["activities-summary"]["employments"]} />
+      </div>
+    {#match _}
+      <div />
+  {/case}
+</div>
