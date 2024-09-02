@@ -8,7 +8,7 @@
         <Bonfire.OpenScience.Orcid.PreviewLive metadata={metadata} />
         <Bonfire.OpenScience.Orcid.KeywordsLive metadata={metadata} />
         <Bonfire.OpenScience.Orcid.EducationLive education={e(metadata, "orcid", "activities-summary", "educations", nil)} />
-        <Bonfire.OpenScience.Orcid.EmploymentLive employment={e(metadata["orcid", "activities-summary", "employments", nil)]} />
+        <Bonfire.OpenScience.Orcid.EmploymentLive employment={e(metadata, "orcid", "activities-summary", "employments", nil)} />
       </div>
     {#match _}
       <div />
