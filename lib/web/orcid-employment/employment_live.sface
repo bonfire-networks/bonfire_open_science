@@ -5,7 +5,7 @@
       <li>
         {#for summary <- e(employment, "summaries", [])}
           <div class="border border-base-content/10 flex flex-col gap-1">
-            <h3 class="p-3 bg-base-content/10 border-b border-base-content/10 text-base font-bold">
+            <h3 class="p-3 bg-base-content/5 border-b border-base-content/10 text-base font-bold">
               {e(summary, "employment-summary", "organization", "name", nil)}
 
               {#if e(summary, "employment-summary", "department-name", nil)}({e(summary, "employment-summary", "department-name", nil)}){/if}
