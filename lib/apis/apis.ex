@@ -151,7 +151,9 @@ defmodule Bonfire.OpenScience.APIs do
             user,
             e(summary, "url", "value", nil) || "https://orcid.org/#{e(summary, "path", nil)}",
             opts
-            |> Keyword.put_new(:update_existing, true)
+            # |> Keyword.put_new(:update_existing, true) # to update meta
+            # to re-publisj
+            |> Keyword.put_new(:update_existing, :force)
             |> Keyword.merge(
               id:
                 DatesTimes.maybe_generate_ulid(
@@ -172,7 +174,6 @@ defmodule Bonfire.OpenScience.APIs do
           )
         end)
       end)
-      |> debug()
     else
       e ->
         error(e)
@@ -204,6 +205,7 @@ defmodule Bonfire.OpenScience.APIs do
   def perform(_job) do
     # cron job to periodically query for each user with an orcid and fetch their latest works
     fetch_orcid_for_all_known_scientists()
+    |> info("ORCID data imported")
 
     :ok
   end
