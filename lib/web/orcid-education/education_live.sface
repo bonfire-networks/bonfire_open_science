@@ -1,7 +1,7 @@
-<div :if={e(@education, "affiliation-group", nil)}>
+<div :if={e(@educations, "affiliation-group", nil)}>
   <h2 class="text-sm font-semibold text-base-content mb-3">Education</h2>
   <ul>
-    {#for education <- e(@education, "affiliation-group", [])}
+    {#for education <- e(@educations, "affiliation-group", [])}
       <li>
         {#for summary <- e(education, "summaries", [])}
           <div class="border border-base-content/10 flex flex-col gap-1">
@@ -13,12 +13,10 @@
               <p class="text-sm text-base-content/70">
                 {#if e(summary, "education-summary", "start-date", nil)}
                   From
-                  {DatesTimes.format_date(e(summary, "education-summary", "start-date", nil))}
-
-                  {e(summary, "education-summary", "start-date", "day", "value", nil)}/{e(summary, "education-summary", "start-date", "month", "value", nil)}/{e(summary, "education-summary", "start-date", "year", "value", nil)}
+                  {DatesTimes.format_date(e(summary, "education-summary", "start-date", nil), format: :yMMM)}
                 {/if}
                 {#if e(summary, "education-summary", "end-date", nil)}
-                  to {e(summary, "education-summary", "end-date", "day", "value", nil)}/{e(summary, "education-summary", "end-date", "month", "value", nil)}/{e(summary, "education-summary", "end-date", "year", "value", nil)}
+                  to {DatesTimes.format_date(e(summary, "education-summary", "end-date", nil), format: :yMMM)}
                 {/if}
               </p>
             </div>

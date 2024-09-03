@@ -151,9 +151,10 @@ defmodule Bonfire.OpenScience.APIs do
             user,
             e(summary, "url", "value", nil) || "https://orcid.org/#{e(summary, "path", nil)}",
             opts
-            # |> Keyword.put_new(:update_existing, true) # to update meta
-            # to re-publisj
-            |> Keyword.put_new(:update_existing, :force)
+            #  to upsert metadata
+            |> Keyword.put_new(:update_existing, true)
+            # to (re)publish the activity
+            # |> Keyword.put_new(:update_existing, :force)
             |> Keyword.merge(
               id:
                 DatesTimes.maybe_generate_ulid(
