@@ -1,6 +1,6 @@
 <div :if={e(@educations, "affiliation-group", nil)}>
-  <h2 class="text-sm font-semibold text-base-content mb-3">Education</h2>
-  <ul>
+  <h2 class="text-sm font-semibold text-base-content/70 mb-3">Education</h2>
+  <ul class="flex flex-col gap-2">
     {#for education <- e(@educations, "affiliation-group", [])}
       <li>
         {#for summary <- e(education, "summaries", [])}

@@ -2,7 +2,7 @@
   {#match []}
   {#match keywords}
     <div class="keywords-list">
-      <h3 class="text-sm font-semibold text-base-content mb-3">{l("Keywords")}</h3>
+      <h3 class="text-sm font-semibold text-base-content/70 mb-3">{l("Keywords")}</h3>
       <ul class="flex flex-wrap gap-2">
         {#for keyword <- keywords}
           <li class="badge badge-outline">{keyword}</li>
