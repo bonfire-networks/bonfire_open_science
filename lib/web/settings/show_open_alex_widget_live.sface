@@ -3,9 +3,7 @@
     show_label={Settings.get([Bonfire.OpenScience, :openalex_widget], false, @__context__) == true}
     label="Third party API integration"
     name={l("Show OpenAlex Widget")}
-    description={l(
-      "You will see the OpenAlex widget on your profile page"
-    )}
+    description={l("You will see the OpenAlex widget on your profile page")}
     keys={[Bonfire.OpenScience, :openalex_widget]}
     scope={@scope}
     compact

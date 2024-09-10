@@ -202,6 +202,25 @@ defmodule Bonfire.OpenScience.APIs do
     end
   end
 
+  def find_orcid_id(aliases) do
+    Enum.find_value(aliases, fn alias ->
+      if e(alias, :edge, :object, :media_type, "") == "orcid",
+        do: e(alias, :edge, :object, :path, "") |> String.replace("https://orcid.org/", ""),
+        else: nil
+    end)
+  end
+
+  def open_alex_fetch_topics(orcid_id) do
+    with {:ok, %{body: body}} <- HTTP.get("https://api.openalex.org/authors/orcid:#{orcid_id}"),
+         {:ok, body} <- Jason.decode(body) do
+      body
+    else
+      e ->
+        error(e, "Could not fetch from OpenAlex")
+        nil
+    end
+  end
+
   @impl Oban.Worker
   def perform(_job) do
     # cron job to periodically query for each user with an orcid and fetch their latest works

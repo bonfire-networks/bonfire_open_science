@@ -1,48 +1,44 @@
 <div>
-{#if e(@open_alex_data, nil)}
-<div class="flex flex-col gap-3">
-    <Bonfire.UI.Common.WidgetBlockLive
-        widget_title={"Author Info"}
-    >
-    <div class="flex text-sm flex-col gap-2 divide-y divide-base-content/10">
-        <div class="flex justify-between gap-4 pt-2"><span class="font-medium">{l "Works count"}</span> <span class="badge badge-neutral badge-sm">{e(@open_alex_data, "works_count", nil)}</span></div>
-        <div class="flex justify-between gap-4 pt-2"><span class="font-medium">{l "Citations count"}</span> <span class="badge badge-neutral badge-sm">{e(@open_alex_data, "cited_by_count", nil)}</span></div>
-        <div class="flex justify-between gap-4 pt-2"><span class="font-medium">{l "2yr mean citedness"}</span> <span class="badge badge-neutral badge-sm">{Float.round(e(@open_alex_data, "summary_stats", "2yr_mean_citedness", nil), 2)}</span></div>
-        <div class="flex justify-between gap-4 pt-2"><span class="font-medium">{l "H index"}</span> <span class="badge badge-neutral badge-sm">{e(@open_alex_data, "summary_stats", "h_index", nil)}</span></div>
-        <div class="flex justify-between gap-4 pt-2"><span class="font-medium">{l "i-10 index"}</span> <span class="badge badge-neutral badge-sm">{e(@open_alex_data, "summary_stats", "i10_index", nil)}</span></div>
-    </div>
-    <!-- <div class="badge badge-neutral badge-sm">OpenAlex source</div> -->
-    </Bonfire.UI.Common.WidgetBlockLive>
-
-    <Bonfire.UI.Common.WidgetBlockLive
-        widget_title={"Author Topics"}
-    >
-    <div x-data="{ showAll: false }">
-    <div class="flex flex-col gap-2 divide-y divide-base-content/10">
-        {#for topic <- e(@open_alex_data, "topics", []) |> Enum.with_index()}
-        <div 
-            class="text-sm pt-2 flex items-center justify-between gap-4"
-            x-show={"showAll || #{elem(topic, 1)} < 5"}
-        >
-            <span class="font-medium">{e(elem(topic, 0), "display_name", nil)}</span>
-            <span class="badge badge-neutral badge-sm">{e(elem(topic, 0), "count", nil)}</span>
+  {#if e(@open_alex_data, nil)}
+    <div class="flex flex-col gap-3">
+      <Bonfire.UI.Common.WidgetBlockLive widget_title="Author Info">
+        <div class="flex text-sm flex-col gap-2 divide-y divide-base-content/10">
+          <div class="flex justify-between gap-4 pt-2"><span class="font-medium">{l("Works count")}</span> <span class="badge badge-neutral badge-sm">{e(@open_alex_data, "works_count", nil)}</span></div>
+          <div class="flex justify-between gap-4 pt-2"><span class="font-medium">{l("Citations count")}</span> <span class="badge badge-neutral badge-sm">{e(@open_alex_data, "cited_by_count", nil)}</span></div>
+          <div class="flex justify-between gap-4 pt-2"><span class="font-medium">{l("2yr mean citedness")}</span> <span class="badge badge-neutral badge-sm">{Float.round(e(@open_alex_data, "summary_stats", "2yr_mean_citedness", nil), 2)}</span></div>
+          <div class="flex justify-between gap-4 pt-2"><span class="font-medium">{l("H index")}</span> <span class="badge badge-neutral badge-sm">{e(@open_alex_data, "summary_stats", "h_index", nil)}</span></div>
+          <div class="flex justify-between gap-4 pt-2"><span class="font-medium">{l("i-10 index")}</span> <span class="badge badge-neutral badge-sm">{e(@open_alex_data, "summary_stats", "i10_index", nil)}</span></div>
         </div>
-        {/for}
+        <!-- <div class="badge badge-neutral badge-sm">OpenAlex source</div> -->
+      </Bonfire.UI.Common.WidgetBlockLive>
+
+      <Bonfire.UI.Common.WidgetBlockLive widget_title="Author Topics">
+        <div x-data="{ showAll: false }">
+          <div class="flex flex-col gap-2 divide-y divide-base-content/10">
+            {#for topic <- e(@open_alex_data, "topics", []) |> Enum.with_index()}
+              <div
+                class="text-sm pt-2 flex items-center justify-between gap-4"
+                x-show={"showAll || #{elem(topic, 1)} < 5"}
+              >
+                <span class="font-medium">{e(elem(topic, 0), "display_name", nil)}</span>
+                <span class="badge badge-neutral badge-sm">{e(elem(topic, 0), "count", nil)}</span>
+              </div>
+            {/for}
+          </div>
+
+          <div class="flex justify-end">
+            <button
+              x-show="{length(e(@open_alex_data, 'topics', []))} > 5"
+              @click="showAll = !showAll"
+              class="mt-4 btn btn-xs btn-neutral"
+              x-text="showAll ? 'Read less' : 'Read more'"
+            >
+            </button>
+          </div>
+        </div>
+      </Bonfire.UI.Common.WidgetBlockLive>
     </div>
-  
-  <div class="flex justify-end">
-    <button 
-    x-show="{length(e(@open_alex_data, 'topics', []))} > 5"
-    @click="showAll = !showAll" 
-    class="mt-4 btn btn-xs btn-neutral"
-    x-text="showAll ? 'Read less' : 'Read more'"
-    >
-    </button>
-</div>
-    </div>
-    </Bonfire.UI.Common.WidgetBlockLive>
-</div>
-{#else}
-<div></div>
-{/if}
+  {#else}
+    <div />
+  {/if}
 </div>
