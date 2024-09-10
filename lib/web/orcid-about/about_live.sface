@@ -5,8 +5,8 @@
   {#case type}
     {#match "orcid"}
       <div class="flex flex-col gap-4">
-        <Bonfire.OpenScience.Orcid.PreviewLive metadata={metadata} />
-        <Bonfire.OpenScience.Orcid.KeywordsLive metadata={metadata} />
+        <!-- <Bonfire.OpenScience.Orcid.PreviewLive metadata={metadata} /> -->
+        <!-- <Bonfire.OpenScience.Orcid.KeywordsLive metadata={metadata} /> -->
         {#case e(metadata, "orcid", "activities-summary", "educations", nil)}
           {#match nil}
           {#match educations}

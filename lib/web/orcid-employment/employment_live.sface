@@ -1,11 +1,11 @@
 <div :if={e(@employments, "affiliation-group", nil)}>
-  <h2 class="text-sm font-semibold text-base-content/70 mb-3">{l("Employment")}</h2>
+  <h2 class="text-sm font-medium text-base-content/70 mb-3">{l("Employment")}</h2>
   <ul class="flex flex-col gap-2">
     {#for employment <- e(@employments, "affiliation-group", [])}
       <li>
         {#for summary <- e(employment, "summaries", [])}
           <div class="border border-base-content/10 flex flex-col gap-1">
-            <h3 class="p-3 bg-base-content/5 border-b border-base-content/10 text-base font-bold">
+            <h3 class="p-3 bg-base-content/5 text-sm font-bold">
               {e(summary, "employment-summary", "organization", "name", nil)}
 
               {#if e(summary, "employment-summary", "department-name", nil)}({e(summary, "employment-summary", "department-name", nil)}){/if}
