@@ -1,7 +1,11 @@
 <div>
   {#if e(@open_alex_data, nil)}
     <div class="flex flex-col gap-3">
-      <Bonfire.UI.Common.WidgetBlockLive widget_title="Author Info">
+      <Bonfire.UI.Common.WidgetBlockLive>
+        <div class="pb-3 flex justify-between items-center">
+            <div class="text-base font-bold tracking-wide">{l "Author info"}</div>
+            <span class="badge badge-sm badge-info">{l "OpenAlex source"}</span>
+        </div>
         <div class="flex text-sm flex-col gap-2 divide-y divide-base-content/10">
           <div class="flex justify-between gap-4 pt-2"><span class="font-medium">{l("Works count")}</span> <span class="badge badge-neutral badge-sm">{e(@open_alex_data, "works_count", nil)}</span></div>
           <div class="flex justify-between gap-4 pt-2"><span class="font-medium">{l("Citations count")}</span> <span class="badge badge-neutral badge-sm">{e(@open_alex_data, "cited_by_count", nil)}</span></div>
@@ -12,7 +16,11 @@
         <!-- <div class="badge badge-neutral badge-sm">OpenAlex source</div> -->
       </Bonfire.UI.Common.WidgetBlockLive>
 
-      <Bonfire.UI.Common.WidgetBlockLive widget_title="Author Topics">
+      <Bonfire.UI.Common.WidgetBlockLive >
+        <div class="pb-3 flex justify-between items-center">
+          <div class="text-base font-bold tracking-wide">{l "Author Topics"}</div>
+          <span class="badge badge-sm badge-info">{l "OpenAlex source"}</span>
+        </div>
         <div x-data="{ showAll: false }">
           <div class="flex flex-col gap-2 divide-y divide-base-content/10">
             {#for topic <- e(@open_alex_data, "topics", []) |> Enum.with_index()}
