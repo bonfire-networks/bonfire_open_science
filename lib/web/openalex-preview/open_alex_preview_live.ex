@@ -23,19 +23,22 @@ defmodule Bonfire.OpenScience.OpenAlex.PreviewLive do
 
   def find_orcid_id(aliases) do
     Enum.find_value(aliases, fn alias ->
-      if e(alias, :edge, :object, :media_type, "") == "orcid", do: e(alias, :edge, :object, :path, ""), else: nil
+      if e(alias, :edge, :object, :media_type, "") == "orcid",
+        do: e(alias, :edge, :object, :path, ""),
+        else: nil
     end)
   end
 
   defp fetch_topics(orcid_id) do
     url = "https://api.openalex.org/authors/orcid:#{orcid_id}"
+
     case HTTPoison.get(url) do
       {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
         data = Jason.decode!(body)
         data
+
       _ ->
         []
     end
   end
-
 end

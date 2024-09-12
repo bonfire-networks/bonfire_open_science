@@ -4,20 +4,22 @@
 >
   {#case type}
     {#match "orcid"}
-      <div class="flex flex-col gap-4">
-        <!-- <Bonfire.OpenScience.Orcid.PreviewLive metadata={metadata} /> -->
-        <!-- <Bonfire.OpenScience.Orcid.KeywordsLive metadata={metadata} /> -->
-        {#case e(metadata, "orcid", "activities-summary", "educations", nil)}
-          {#match nil}
-          {#match educations}
-            <Bonfire.OpenScience.Orcid.EducationLive educations={educations} />
-        {/case}
-        {#case e(metadata, "orcid", "activities-summary", "employments", nil)}
-          {#match nil}
-          {#match employments}
-            <Bonfire.OpenScience.Orcid.EmploymentLive employments={employments} />
-        {/case}
-      </div>
+      {#if Settings.get([Bonfire.OpenScience, :orcid_info], false, @__context__) == true}
+        <div class="flex flex-col gap-4">
+          <!-- <Bonfire.OpenScience.Orcid.PreviewLive metadata={metadata} /> -->
+          <!-- <Bonfire.OpenScience.Orcid.KeywordsLive metadata={metadata} /> -->
+          {#case e(metadata, "orcid", "activities-summary", "educations", nil)}
+            {#match nil}
+            {#match educations}
+              <Bonfire.OpenScience.Orcid.EducationLive educations={educations} />
+          {/case}
+          {#case e(metadata, "orcid", "activities-summary", "employments", nil)}
+            {#match nil}
+            {#match employments}
+              <Bonfire.OpenScience.Orcid.EmploymentLive employments={employments} />
+          {/case}
+        </div>
+      {/if}
     {#match _}
       <div />
   {/case}
