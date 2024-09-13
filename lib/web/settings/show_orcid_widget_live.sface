@@ -2,10 +2,11 @@
   <Bonfire.UI.Common.SettingsToggleLive
     show_label={Settings.get([Bonfire.OpenScience, :orcid_info], false, @__context__) == true}
     label="Third party API integration"
-    name={l("Show Orcid info")}
-    description={l("You will see the Orcid info on your profile page")}
+    name={l("Show ORCID info")}
+    description={l("You will display ORCID info on your profile page")}
     keys={[Bonfire.OpenScience, :orcid_info]}
     scope={@scope}
     compact
+    show_label
   />
 </form>

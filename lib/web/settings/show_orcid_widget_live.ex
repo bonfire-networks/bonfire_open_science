@@ -3,5 +3,5 @@ defmodule Bonfire.OpenScience.ShowOrcidWidgetLive do
 
   prop scope, :any, default: nil
 
-  declare_settings_component("Orcid Info", icon: "fluent:people-team-16-filled")
+  declare_settings_component("ORCID Info", icon: "fluent:people-team-16-filled")
 end
