@@ -122,14 +122,21 @@ defmodule Bonfire.OpenScience.APIs do
   defp fetch_orcid_data(_, _), do: nil
 
   def fetch_orcid_record(user, orcid_user_media, opts \\ []) do
-    with {:ok, %{"person" => _} = data} <-
+    with {:ok, %{"person" => _} = fresh_data} <-
            fetch_orcid_data(orcid_user_media, "record") |> debug("reccord"),
+         existing_data = e(orcid_user_media, :metadata, "orcid", nil),
          {:ok, orcid_user_media} <-
            Bonfire.Files.Media.update(user, orcid_user_media, %{
              metadata:
                Map.merge(
                  e(orcid_user_media, :metadata, %{}),
-                 %{"orcid" => Map.merge(e(orcid_user_media, :metadata, "orcid", %{}), data)}
+                 %{
+                   "orcid" =>
+                     Map.merge(
+                       if(is_map(existing_data), do: existing_data, else: %{}),
+                       fresh_data
+                     )
+                 }
                )
            }) do
       [orcid_user_media]
