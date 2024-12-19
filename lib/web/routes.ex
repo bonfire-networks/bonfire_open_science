@@ -17,7 +17,7 @@ defmodule Bonfire.OpenScience.Web.Routes do
   declare_nav_link(l("Publications"),
     page: "publications",
     # served by this route in `Bonfire.UI.Social`: `live("/feed/:tab/:object_type", FeedsLive, as: :feed)`)
-    href: "/feed/explore/media",
+    href: "/feed/local/media",
     icon: "carbon:document"
   )
 
