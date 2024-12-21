@@ -27,6 +27,11 @@ defmodule Bonfire.OpenScience.RuntimeConfig do
         ]
       ]
 
+    config :unfurl,
+      ignore_redirect_urls: [
+        "https://orcid.org/signin"
+      ]
+
     config :unfurl, Unfurl.Oembed,
       extra_providers: [
         %{

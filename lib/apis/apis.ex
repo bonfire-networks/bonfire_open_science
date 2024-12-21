@@ -16,6 +16,7 @@ defmodule Bonfire.OpenScience.APIs do
     doi: ~r/^#{@doi_matcher}/i,
     # doi_prefixed: ~r/doi:^#{@doi_matcher}/i
     doi_prefixed: ~r/^doi:([^\s]+)/i
+    # doi_prefixed: ~r/^doi: ([^\s]+)/i
     # scopus_eid: ~r/2-s2.0-[0-9]{11}/
   }
   @pub_uri_matchers %{
