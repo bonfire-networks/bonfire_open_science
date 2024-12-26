@@ -155,31 +155,11 @@ defmodule Bonfire.OpenScience.APIs do
       |> Enum.map(fn %{"work-summary" => summaries} ->
         summaries
         |> Enum.map(fn summary ->
-          Bonfire.Files.Acts.URLPreviews.maybe_fetch_and_save(
+          fetch_and_publish_work(
             user,
             e(summary, "url", "value", nil) || "https://orcid.org/#{e(summary, "path", nil)}",
-            opts
-            #  to upsert metadata
-            |> Keyword.put_new(:update_existing, true)
-            # to (re)publish the activity
-            # |> Keyword.put_new(:update_existing, :force)
-            |> Keyword.merge(
-              id:
-                DatesTimes.maybe_generate_ulid(
-                  # e(summary, "publication-date", nil) ||
-                  e(summary, "created-date", "value", nil)
-                ),
-              post_create_fn: fn current_user, media, opts ->
-                Bonfire.Social.Objects.publish(
-                  current_user,
-                  :create,
-                  media,
-                  [boundary: "public"],
-                  __MODULE__
-                )
-              end,
-              extra: %{orcid: summary}
-            )
+            opts ++
+              [date_created: e(summary, "created-date", "value", nil), extra: %{orcid: summary}]
           )
         end)
       end)
@@ -188,6 +168,31 @@ defmodule Bonfire.OpenScience.APIs do
         error(e)
         []
     end
+  end
+
+  def fetch_and_publish_work(user, url, opts \\ []) do
+    Bonfire.Files.Acts.URLPreviews.maybe_fetch_and_save(
+      user,
+      url,
+      opts
+      #  to upsert metadata
+      |> Keyword.put_new(:update_existing, true)
+      # to (re)publish the activity
+      # |> Keyword.put_new(:update_existing, :force)
+      |> Keyword.merge(
+        id: DatesTimes.maybe_generate_ulid(opts[:date_created]),
+        post_create_fn: fn current_user, media, opts ->
+          Bonfire.Social.Objects.publish(
+            current_user,
+            :create,
+            media,
+            [boundary: "public"],
+            __MODULE__
+          )
+        end,
+        extra: opts[:extra] || %{}
+      )
+    )
   end
 
   def fetch_orcid_latest(user, media, opts \\ []) do
