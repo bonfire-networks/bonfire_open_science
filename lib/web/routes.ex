@@ -3,7 +3,7 @@ defmodule Bonfire.OpenScience.Web.Routes do
   import Bonfire.Common.Modularity.DeclareHelpers
   import Bonfire.UI.Common.Modularity.DeclareHelpers
 
-  def declare_routes, do: nil
+  @behaviour Bonfire.UI.Common.RoutesModule
 
   declare_extension("Open Science",
     icon: "mingcute:microscope-fill",
