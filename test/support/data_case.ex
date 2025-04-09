@@ -23,6 +23,8 @@ defmodule Bonfire.OpenScience.DataCase do
       import Ecto.Changeset
       import Ecto.Query
       # import Bonfire.OpenScience.DataCase
+
+      @moduletag :backend
     end
   end
 
