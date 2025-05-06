@@ -180,7 +180,7 @@ defmodule Bonfire.OpenScience.APIs do
       # to (re)publish the activity
       # |> Keyword.put_new(:update_existing, :force)
       |> Keyword.merge(
-        id: DatesTimes.maybe_generate_ulid(opts[:date_created]),
+        id: DatesTimes.generate_ulid_if_past(opts[:date_created]),
         post_create_fn: fn current_user, media, opts ->
           Bonfire.Social.Objects.publish(
             current_user,
