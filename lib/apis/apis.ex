@@ -186,6 +186,7 @@ defmodule Bonfire.OpenScience.APIs do
             current_user,
             :create,
             media,
+            #  TODO: use a more specific boundary
             [boundary: "public"],
             __MODULE__
           )
