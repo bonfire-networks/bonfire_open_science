@@ -4,7 +4,7 @@ defmodule Bonfire.OpenScience.Orcid.AboutLive do
   prop class, :any, default: nil
 
   prop user, :any, default: nil
-  prop aliases, :list, default: []
+  prop aliases, :any, default: []
 
   # def render(assigns) do
   #   user = assigns[:user]
