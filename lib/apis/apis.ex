@@ -9,20 +9,27 @@ defmodule Bonfire.OpenScience.APIs do
   alias Unfurl.Fetcher
 
   @doi_matcher "10.\d{4,9}\/[-._;()\/:A-Z0-9]+$"
-  @pub_id_matchers %{
-    pmid: ~r/PMID:*[ \t]*[0-9]{1,10}/,
-    pmcid: ~r/PMC[0-9]+/,
-    # :doi => ~r/10.+\/.+/,
-    doi: ~r/^#{@doi_matcher}/i,
-    # doi_prefixed: ~r/doi:^#{@doi_matcher}/i
-    doi_prefixed: ~r/^doi:([^\s]+)/i
-    # doi_prefixed: ~r/^doi: ([^\s]+)/i
-    # scopus_eid: ~r/2-s2.0-[0-9]{11}/
-  }
-  @pub_uri_matchers %{
-    doi_url: ~r/doi\.org([^\s]+)/i
-  }
-  @pub_id_and_uri_matchers Map.merge(@pub_id_matchers, @pub_uri_matchers)
+
+  def pub_id_matchers,
+    do: %{
+      pmid: ~r/PMID:*[ \t]*[0-9]{1,10}/,
+      pmcid: ~r/PMC[0-9]+/,
+      # :doi => ~r/10.+\/.+/,
+      doi: ~r/^#{@doi_matcher}/i,
+      # doi_prefixed: ~r/doi:^#{@doi_matcher}/i
+      doi_prefixed: ~r/^doi:([^\s]+)/i
+      # doi_prefixed: ~r/^doi: ([^\s]+)/i
+      # scopus_eid: ~r/2-s2.0-[0-9]{11}/
+    }
+
+  def pub_uri_matchers,
+    do: %{
+      doi_url: ~r/doi\.org([^\s]+)/i
+    }
+
+  def pub_id_and_uri_matchers, do: Map.merge(pub_id_matchers(), pub_uri_matchers())
+
+  def pub_id_matcher(type), do: pub_id_and_uri_matchers()[type]
 
   def maybe_fetch(url) do
     if is_pub_id_or_uri_match?(url), do: fetch(url)
@@ -93,11 +100,6 @@ defmodule Bonfire.OpenScience.APIs do
         String.match?(url, scheme)
     end)
   end
-
-  def pub_id_matchers(), do: @pub_id_matchers
-  def pub_uri_matchers(), do: @pub_uri_matchers
-  def pub_id_and_uri_matchers(), do: @pub_id_and_uri_matchers
-  def pub_id_matcher(type), do: pub_id_and_uri_matchers()[type]
 
   defp fetch_orcid_data(metadata, type \\ "record")
 
