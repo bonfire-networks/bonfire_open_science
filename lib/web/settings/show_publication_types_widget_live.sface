@@ -1,0 +1,9 @@
+<form data-scope="set_show_publication_types_widget" phx-change="Bonfire.Common.Settings:set">
+  <Bonfire.UI.Common.SettingsToggleLive
+    show_label={Settings.get([Bonfire.OpenScience, :publication_types_widget], false, @__context__) == true}
+    keys={[Bonfire.OpenScience, :publication_types_widget]}
+    scope={@scope}
+    compact
+    show_label
+  />
+</form>

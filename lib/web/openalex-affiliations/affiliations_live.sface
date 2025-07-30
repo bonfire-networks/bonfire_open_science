@@ -1,0 +1,46 @@
+<div>
+  {#if @open_alex_data}
+    <div class="flex flex-col gap-2">
+      {#case e(@open_alex_data, "last_known_institutions", nil)}
+        {#match nil}
+        {#match institutions when institutions != []}
+          <Bonfire.UI.Common.WidgetBlockLive class="">
+            <div class="flex flex-col gap-3">
+              <div class="text-sm">
+                <span class="font-medium">{l("Current Institution")}:
+                </span>
+                {#for institution <- Enum.take(institutions, 1)}
+                  <a href={e(institution, "ror", nil)} class="link link-primary" target="_blank">
+                    {e(institution, "display_name", l("Unknown Institution"))}
+                  </a>
+                {/for}
+              </div>
+            </div>
+          </Bonfire.UI.Common.WidgetBlockLive>
+      {/case}
+
+      {#case e(@open_alex_data, "affiliations", nil)}
+        {#match nil}
+        {#match affiliations when affiliations != []}
+          <Bonfire.UI.Common.WidgetBlockLive class="">
+            <div class="flex flex-col gap-3">
+              <div class="text-sm">
+                <span class="font-medium">{l("Past institutions")}:
+                </span>
+                <span class="inline-flex flex-wrap gap-1">
+                  {#for {affiliation, index} <- Enum.with_index(Enum.drop(affiliations, 1))}
+                    <a href={e(affiliation, "institution", "ror", nil)} class="link link-primary" target="_blank">
+                      {e(affiliation, "institution", "display_name", l("Unknown Institution"))}
+                    </a>{#if index < length(Enum.drop(affiliations, 1)) - 1},
+                    {/if}
+                  {/for}
+                </span>
+              </div>
+            </div>
+          </Bonfire.UI.Common.WidgetBlockLive>
+      {/case}
+    </div>
+  {#else}
+    <div />
+  {/if}
+</div>

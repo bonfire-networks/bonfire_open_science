@@ -1,0 +1,46 @@
+<div>
+  <!-- Recent Publication Widget -->
+  <StatefulComponent
+    :if={e(@enabled_widgets, :recent_publication, false)}
+    id="recent-publication-provider"
+    module={maybe_component(Bonfire.OpenScience.RecentPublicationLive, @__context__)}
+    user={@user}
+    publication_data={@recent_publication}
+  />
+
+  <!-- Most Cited Publication Widget -->
+  <StatefulComponent
+    :if={e(@enabled_widgets, :most_cited_publication, false)}
+    id="most-cited-publication-provider"
+    module={maybe_component(Bonfire.OpenScience.MostCitedPublicationLive, @__context__)}
+    user={@user}
+    publication_data={@most_cited_publication}
+  />
+
+  <!-- Author Info Widget -->
+  <StatefulComponent
+    :if={e(@enabled_widgets, :author_info, false)}
+    id="author-info-provider"
+    module={maybe_component(Bonfire.OpenScience.AuthorInfoLive, @__context__)}
+    user={@user}
+    author_data={@author_data}
+  />
+
+  <!-- Author Topics Widget -->
+  <StatefulComponent
+    :if={e(@enabled_widgets, :author_topics, false)}
+    id="author-topics-provider"
+    module={maybe_component(Bonfire.OpenScience.AuthorTopicsLive, @__context__)}
+    user={@user}
+    author_data={@author_data}
+  />
+
+  <!-- Publication Types Widget -->
+  <StatefulComponent
+    :if={e(@enabled_widgets, :publication_types, false) && @works_by_type != []}
+    id="publication-types-provider"
+    module={maybe_component(Bonfire.OpenScience.PublicationTypesLive, @__context__)}
+    user={@user}
+    works_by_type={@works_by_type}
+  />
+</div>

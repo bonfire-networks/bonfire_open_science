@@ -1,0 +1,9 @@
+<form data-scope="set_show_author_info_widget" phx-change="Bonfire.Common.Settings:set">
+  <Bonfire.UI.Common.SettingsToggleLive
+    show_label={Settings.get([Bonfire.OpenScience, :author_info_widget], false, @__context__) == true}
+    keys={[Bonfire.OpenScience, :author_info_widget]}
+    scope={@scope}
+    compact
+    show_label
+  />
+</form>

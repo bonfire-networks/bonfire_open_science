@@ -78,15 +78,8 @@ defmodule Bonfire.OpenScience.APIs do
     end
   end
 
-  def is_doi?("doi:" <> _), do: true
-  def is_doi?("https://doi.org/" <> _), do: true
-  def is_doi?("http://doi.org/" <> _), do: true
-
-  def is_doi?(url),
-    do:
-      is_binary(url) and
-        (String.match?(url, pub_id_matcher(:doi)) ||
-           String.match?(url, pub_id_matcher(:doi_prefixed)))
+  # Delegate to ORCID module for DOI checking
+  defdelegate is_doi?(url), to: Bonfire.OpenScience.ORCID
 
   def is_pub_id_or_uri_match?(url) do
     pub_id_and_uri_matchers()
@@ -218,24 +211,8 @@ defmodule Bonfire.OpenScience.APIs do
     end
   end
 
-  def find_orcid_id(aliases) do
-    Enum.find_value(aliases, fn alias ->
-      if e(alias, :edge, :object, :media_type, "") == "orcid",
-        do: e(alias, :edge, :object, :path, "") |> String.replace("https://orcid.org/", ""),
-        else: nil
-    end)
-  end
-
-  def open_alex_fetch_topics(orcid_id) do
-    with {:ok, %{body: body}} <- HTTP.get("https://api.openalex.org/authors/orcid:#{orcid_id}"),
-         {:ok, body} <- Jason.decode(body) do
-      body
-    else
-      e ->
-        error(e, "Could not fetch from OpenAlex")
-        nil
-    end
-  end
+  # Delegate to new ORCID module for backward compatibility
+  defdelegate find_orcid_id(aliases), to: Bonfire.OpenScience.ORCID, as: :find_from_aliases
 
   @impl Oban.Worker
   def perform(_job) do
