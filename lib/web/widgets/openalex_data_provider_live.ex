@@ -22,12 +22,15 @@ defmodule Bonfire.OpenScience.OpenAlexDataProviderLive do
 
   def update(assigns, socket) do
     # Handle both regular assigns and Surface component state
-    assigns = case assigns do
-      %{__context__: _} -> assigns  # Normal assigns
-      %{socket: %{assigns: socket_assigns}} -> socket_assigns  # Surface state wrapper
-      _ -> assigns
-    end
-    
+    assigns =
+      case assigns do
+        # Normal assigns
+        %{__context__: _} -> assigns
+        # Surface state wrapper
+        %{socket: %{assigns: socket_assigns}} -> socket_assigns
+        _ -> assigns
+      end
+
     user = assigns[:user]
     current_user = assigns[:current_user] || current_user(socket)
 

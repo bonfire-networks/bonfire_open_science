@@ -1,4 +1,7 @@
-<form data-scope="set_show_most_cited_publication_widget" phx-change="Bonfire.Common.Settings:set">
+<form
+  data-scope="set_show_most_cited_publication_widget"
+  phx-change="Bonfire.Common.Settings:set"
+>
   <Bonfire.UI.Common.SettingsToggleLive
     show_label={Settings.get([Bonfire.OpenScience, :most_cited_publication_widget], false, @__context__) == true}
     keys={[Bonfire.OpenScience, :most_cited_publication_widget]}

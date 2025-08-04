@@ -3,8 +3,8 @@ defmodule Bonfire.OpenScience.ShowMostCitedPublicationWidgetLive do
 
   prop scope, :any, default: nil
 
-  declare_settings_component("Most Cited Publication Widget",
-    icon: "fluent:trophy-20-filled",
-    description: "Display your most cited work from OpenAlex"
-  )
+  # declare_settings_component("Most Cited Publication Widget",
+  #   icon: "fluent:trophy-20-filled",
+  #   description: "Display your most cited work from OpenAlex"
+  # )
 end

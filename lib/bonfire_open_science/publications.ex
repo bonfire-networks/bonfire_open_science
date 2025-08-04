@@ -106,33 +106,38 @@ defmodule Bonfire.OpenScience.Publications do
   """
   def enabled_widgets(user) do
     current_user = user
-    
+
     %{
-      recent_publication: Settings.get(
-        [Bonfire.OpenScience, :recent_publication_widget],
-        false,
-        current_user: current_user
-      ) == true,
-      most_cited_publication: Settings.get(
-        [Bonfire.OpenScience, :most_cited_publication_widget],
-        false,
-        current_user: current_user
-      ) == true,
-      author_info: Settings.get(
-        [Bonfire.OpenScience, :author_info_widget],
-        false,
-        current_user: current_user
-      ) == true,
-      author_topics: Settings.get(
-        [Bonfire.OpenScience, :author_topics_widget],
-        false,
-        current_user: current_user
-      ) == true,
-      publication_types: Settings.get(
-        [Bonfire.OpenScience, :publication_types_widget],
-        false,
-        current_user: current_user
-      ) == true
+      recent_publication:
+        Settings.get(
+          [Bonfire.OpenScience, :recent_publication_widget],
+          false,
+          current_user: current_user
+        ) == true,
+      most_cited_publication:
+        Settings.get(
+          [Bonfire.OpenScience, :most_cited_publication_widget],
+          false,
+          current_user: current_user
+        ) == true,
+      author_info:
+        Settings.get(
+          [Bonfire.OpenScience, :author_info_widget],
+          false,
+          current_user: current_user
+        ) == true,
+      author_topics:
+        Settings.get(
+          [Bonfire.OpenScience, :author_topics_widget],
+          false,
+          current_user: current_user
+        ) == true,
+      publication_types:
+        Settings.get(
+          [Bonfire.OpenScience, :publication_types_widget],
+          false,
+          current_user: current_user
+        ) == true
     }
   end
 

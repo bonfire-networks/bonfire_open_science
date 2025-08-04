@@ -117,6 +117,85 @@ defmodule Bonfire.OpenScience.APIs do
 
   defp fetch_orcid_data(_, _), do: nil
 
+  @doc """
+  Fetches metadata for an ORCID work URL like https://orcid.org/0000-0002-5534-712X/work/182038255
+  Returns metadata suitable for URL preview with DOI and other academic information
+  """
+  def fetch_orcid_work_metadata(url) when is_binary(url) do
+    with {:ok, orcid_id, work_id} <- parse_orcid_work_url(url),
+         {:ok, work_data} <- fetch_orcid_work_via_public_api(orcid_id, work_id) do
+      {:ok, transform_orcid_work_to_metadata(work_data)}
+    else
+      error ->
+        error(error, "Failed to fetch ORCID work metadata")
+        {:error, :orcid_fetch_failed}
+    end
+  end
+
+  defp parse_orcid_work_url(url) do
+    # Handle URLs with optional extra slashes
+    case Regex.run(~r/orcid\.org\/+(\d{4}-\d{4}-\d{4}-\d{3}[0-9X])\/work\/(\d+)/, url) do
+      [_, orcid_id, work_id] -> {:ok, orcid_id, work_id}
+      _ -> {:error, :invalid_orcid_work_url}
+    end
+  end
+
+  defp fetch_orcid_work_via_public_api(orcid_id, work_id) do
+    # Use public API endpoint that doesn't require authentication
+    url = "https://pub.orcid.org/v3.0/#{orcid_id}/work/#{work_id}"
+    
+    with {:ok, %{body: body}} <- HTTP.get(url, [{"Accept", "application/json"}]),
+         {:ok, data} <- Jason.decode(body) do
+      {:ok, data}
+    end
+  end
+
+  defp transform_orcid_work_to_metadata(work_data) do
+    # Extract DOI and other metadata from ORCID work data
+    doi = extract_doi_from_work(work_data)
+    
+    %{
+      "orcid" => work_data,
+      "title" => e(work_data, "title", "title", "value", nil),
+      "type" => e(work_data, "type", nil),
+      "journal-title" => e(work_data, "journal-title", "value", nil),
+      "publication-date" => e(work_data, "publication-date", nil),
+      "external-ids" => e(work_data, "external-ids", "external-id", nil),
+      "doi" => doi,
+      "url" => doi && "https://doi.org/#{doi}",
+      "contributors" => extract_contributors(work_data),
+      "source" => e(work_data, "source", "source-name", "value", nil)
+    }
+    |> Enum.reject(fn {_, v} -> is_nil(v) or v == "" or v == [] end)
+    |> Map.new()
+  end
+
+  defp extract_doi_from_work(work_data) do
+    work_data
+    |> e("external-ids", "external-id", [])
+    |> List.wrap()
+    |> Enum.find_value(fn ext_id ->
+      if e(ext_id, "external-id-type", nil) == "doi" do
+        e(ext_id, "external-id-value", nil)
+      end
+    end)
+  end
+
+  defp extract_contributors(work_data) do
+    work_data
+    |> e("contributors", "contributor", [])
+    |> List.wrap()
+    |> Enum.map(fn contributor ->
+      %{
+        "name" => e(contributor, "credit-name", "value", nil),
+        "role" => e(contributor, "contributor-attributes", "contributor-role", nil)
+      }
+    end)
+    |> Enum.reject(fn item -> 
+      is_nil(item["name"]) or item["name"] == ""
+    end)
+  end
+
   def fetch_orcid_record(user, orcid_user_media, opts \\ []) do
     with {:ok, %{"person" => _} = fresh_data} <-
            fetch_orcid_data(orcid_user_media, "record") |> debug("reccord"),

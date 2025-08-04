@@ -7,7 +7,7 @@
           {l("Author Topics")}
         </div>
       </div>
-      
+
       <div x-data="{ showAll: false }">
         <div class="flex flex-col gap-2">
           {#for topic <- e(@author_data, "topics", []) |> Enum.with_index()}

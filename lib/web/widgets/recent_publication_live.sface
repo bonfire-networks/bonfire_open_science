@@ -6,13 +6,13 @@
           {l("Most Recent Publication")}
         </div>
       </div>
-      
+
       <div class="flex flex-col gap-3">
         <!-- Publication Title -->
         <div>
           <h3 class="font-medium text-sm leading-relaxed">
-            <a 
-              href={get_publication_url(@recent_publication)} 
+            <a
+              href={get_publication_url(@recent_publication)}
               target="_blank"
               rel="noopener noreferrer"
               class="hover:underline text-base-content hover:text-primary transition-colors"
@@ -52,8 +52,8 @@
 
         <!-- Action Links -->
         <div class="flex gap-2 pt-1">
-          <a 
-            href={get_publication_url(@recent_publication)} 
+          <a
+            href={get_publication_url(@recent_publication)}
             target="_blank"
             rel="noopener noreferrer"
             class="btn btn-xs flex-1 btn-primary"
@@ -61,10 +61,10 @@
             <#Icon iconify="fluent:arrow-up-right-20-regular" class="w-3 h-3" />
             {l("View")}
           </a>
-          
+
           {#if e(@recent_publication, "best_oa_location", "pdf_url", nil)}
-            <a 
-              href={e(@recent_publication, "best_oa_location", "pdf_url", "")} 
+            <a
+              href={e(@recent_publication, "best_oa_location", "pdf_url", "")}
               target="_blank"
               rel="noopener noreferrer"
               class="btn btn-xs flex-1 btn-soft"
