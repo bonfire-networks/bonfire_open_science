@@ -29,7 +29,8 @@ defmodule Bonfire.OpenScience.RuntimeConfig do
 
     config :unfurl,
       ignore_redirect_urls: [
-        "https://orcid.org/signin"
+        "https://orcid.org/signin",
+        "https://orcid.org/404"
       ]
 
     config :unfurl, Unfurl.Oembed,
@@ -50,9 +51,21 @@ defmodule Bonfire.OpenScience.RuntimeConfig do
                       _ -> true
                     end
                   end
-                ] ++ (Bonfire.OpenScience.APIs.pub_id_and_uri_matchers() |> Map.values())
+                ] ++ (Bonfire.OpenScience.pub_id_and_uri_matchers() |> Map.values())
               #      "url" => "https://api.crossref.org/works/",
               #      "append_url" => true 
+            }
+          ]
+        },
+        %{
+          "provider_name" => "ORCID metadata",
+          "provider_url" => "orcid.org",
+          "fetch_function" => {Bonfire.OpenScience, :fetch_orcid_work_metadata},
+          "endpoints" => [
+            %{
+              "schemes" => [
+                ~r/orcid\.org\/[^\/]+\/work\/([^\s]+)/i
+              ]
             }
           ]
         }

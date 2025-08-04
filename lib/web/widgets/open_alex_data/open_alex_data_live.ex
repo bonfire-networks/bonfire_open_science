@@ -11,7 +11,7 @@ defmodule Bonfire.OpenScience.OpenAlex.DataLive do
     user = assigns[:user]
     aliases = OpenScience.user_aliases(user)
     debug(aliases, "User aliases for OpenAlex data widget")
-    orcid_id = APIs.find_orcid_id(aliases)
+    orcid_id = Bonfire.OpenScience.ORCID.find_orcid_id(aliases)
     debug(orcid_id, "Found ORCID ID for OpenAlex data widget")
 
     case orcid_id do
