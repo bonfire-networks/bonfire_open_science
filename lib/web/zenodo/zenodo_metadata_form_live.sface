@@ -1,0 +1,208 @@
+<div class="zenodo-metadata-form mt-4">
+  <Form for={:metadata} submit="submit" change="validate" class="flex flex-col gap-4">
+    {!-- Upload Type --}
+    <label class="input w-full">
+      <span class="label">{l("Upload type")}</span>
+      <Select 
+        field={:upload_type} 
+        options={upload_type_options()} 
+        value={@metadata["upload_type"]}
+        class="w-full"
+      />
+      {#if Map.has_key?(@errors, :upload_type)}
+        <span class="text-error text-sm">{@errors.upload_type}</span>
+      {/if}
+    </label>
+
+    {!-- Title --}
+    <label class="input w-full">
+      <span class="label">{l("Title")}</span>
+      <TextInput 
+        field={:title} 
+        value={@metadata["title"]}
+        class="w-full"
+        opts={maxlength: "500"}
+      />
+      {#if Map.has_key?(@errors, :title)}
+        <span class="text-error text-sm">{@errors.title}</span>
+      {/if}
+    </label>
+    
+    <fieldset class="fieldset mb-0 w-full">
+      <legend class="fieldset-legend">{l("Authors/Creators")} *</legend>
+      
+      <div id="creators-list">
+        {#for {creator, index} <- Enum.with_index(@creators)}
+          <div id={"creator-row-#{index}"} class="creator-row flex gap-2 mb-2" style={if index > 0 and creator["_hidden"], do: "display: none", else: ""}>
+            <input 
+              type="text"
+              name={"creators[#{index}][name]"}
+              value={creator["name"]}
+              placeholder={l("Family name, Given names")}
+              phx-change="update_creators"
+              phx-target={@myself}
+              class="input input-sm flex-1"
+            />
+            <input 
+              type="text"
+              name={"creators[#{index}][orcid]"}
+              value={creator["orcid"]}
+              placeholder="0000-0000-0000-0000"
+              phx-change="update_creators"
+              phx-target={@myself}
+              class="input input-sm w-48"
+            />
+            <input 
+              type="text"
+              name={"creators[#{index}][affiliation]"}
+              value={creator["affiliation"]}
+              placeholder={l("Affiliation")}
+              phx-change="update_creators"
+              phx-target={@myself}
+              class="input input-sm flex-1"
+            />
+            {#if index > 0}
+              <button 
+                type="button"
+                phx-click={
+                  JS.hide(
+                    to: "#creator-row-#{index}",
+                    transition: {"ease-out duration-200", "opacity-100", "opacity-0"}
+                  )
+                  |> JS.push("remove_creator", value: %{index: index}, target: @myself)
+                }
+                class="btn btn-danger btn-square btn-sm"
+              >
+                <Iconify.iconify icon="carbon:close" class="w-4 h-4" />
+              </button>
+            {#else}
+              <div class=""></div>
+            {/if}
+          </div>
+        {/for}
+      </div>
+
+      <button 
+        type="button" 
+        phx-click="add_creator"
+        phx-target={@myself}
+        class="btn btn-primary btn-soft btn-sm"
+      >
+        <Iconify.iconify icon="carbon:add" class="w-4 h-4 mr-1" />
+        {l("Add Author")}
+      </button>
+      
+      {#if Map.has_key?(@errors, :creators)}
+        <span class="text-error text-sm">{@errors.creators}</span>
+      {/if}
+      <div class="label">{l("Author name / ORCID / Affiliation")}</div>
+    </fieldset>
+
+
+    {!-- Description --}
+    <fieldset class="fieldset mb-0 w-full">
+      <legend class="fieldset-legend">{l("Description")} *</legend>
+      <TextArea 
+          field={:description} 
+          value={@metadata["description"]}
+          rows="4"
+          class="textarea w-full"
+        />
+      <div class="label">{l("Minimum 10 characters. Limited HTML supported.")}</div>
+      {#if Map.has_key?(@errors, :description)}
+        <span class="text-error text-sm">{@errors.description}</span>
+      {/if}
+    </fieldset>
+
+   
+    {!-- Publication Date --}
+
+    <label class="input w-full">
+      <span class="label">{l("Publication Date")} *</span>
+      <DateInput 
+        field={:publication_date} 
+        value={@metadata["publication_date"]}
+        class="w-full"
+      />
+      {#if Map.has_key?(@errors, :publication_date)}
+        <span class="text-error text-sm">{@errors.publication_date}</span>
+      {/if}
+    </label>
+
+
+    {!-- Access Rights --}
+    <fieldset class="fieldset mb-0 w-full">
+      <legend class="fieldset-legend">{l("Access rights")} *</legend>
+      <div class="space-y-2">
+          {#for {label, value} <- access_right_options()}
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input 
+                type="radio" 
+                name="metadata[access_right]" 
+                value={value}
+                checked={@metadata["access_right"] == value}
+                phx-change="validate"
+                class="radio radio-sm radio-primary"
+              />
+              <span class="label-text">{label}</span>
+            </label>
+          {/for}
+        </div>
+        {#if Map.has_key?(@errors, :access_right)}
+          <span class="text-error text-sm">{@errors.access_right}</span>
+        {/if}
+    </fieldset>
+    
+
+    {!-- License (conditional) --}
+    {#if @metadata["access_right"] in ["open", "embargoed"]}
+    <fieldset class="fieldset mb-0 w-full">
+
+    <label class="input w-full">
+      <span class="label">{l("License")}</span>
+       <Select 
+          field={:license} 
+          options={license_options()}
+          value={@metadata["license"]}
+          class="w-full"
+        />
+        {#if Map.has_key?(@errors, :license)}
+          <span class="text-error text-sm">{@errors.license}</span>
+        {/if}
+    </label>
+        <a href="https://choosealicense.com" target="_blank" class="link link-primary text-sm">
+          {l("Help choosing a license")}
+        </a>
+      </fieldset>
+    {/if}
+
+  
+
+    {!-- Keywords --}
+     <label class="input w-full">
+      <span class="label">{l("Keywords")}</span>
+      <TextInput 
+        field={:keywords} 
+        value={@metadata["keywords"]}
+        opts={placeholder: l("keyword1, keyword2, keyword3")}
+        class="input input-bordered w-full"
+      />
+      </label>
+    
+
+    {!-- Submit buttons --}
+    <div class="modal-action sticky bottom-0 bg-base-200 border-t border-base-content/10 p-3 -mx-4 z-50">
+      <button type="button" class="btn btn-ghost" onclick="document.getElementById('zenodo-doi-modal').close()">
+        {l("Cancel")}
+      </button>
+      <button type="submit" class={"btn btn-primary", "loading": @submitting} disabled={@submitting}>
+        {#if @submitting}
+          <span class="loading loading-spinner"></span>
+          {l("Creating DOI...")}
+        {#else}
+          {l("Create DOI")}
+        {/if}
+      </button>
+    </div>
+  </Form>
+</div>

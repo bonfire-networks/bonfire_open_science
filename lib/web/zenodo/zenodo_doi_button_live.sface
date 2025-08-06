@@ -1,0 +1,20 @@
+<Bonfire.UI.Common.OpenModalLive
+  id={"zenodo-doi-modal-#{@parent_id}"}
+  title_text={l("Create DOI with Zenodo")}
+  open_btn_text={l("Create DOI")}
+  modal_class="zenodo-modal"
+>
+  <:open_btn>
+    <div class="text-left">
+      <!-- <Iconify.iconify icon="carbon:cloud-upload" class="w-4 h-4" /> -->
+      <span>{l("Create DOI")}</span>
+    </div>
+  </:open_btn>
+
+  <Bonfire.OpenScience.ZenodoMetadataFormLive 
+    post={@post} 
+    current_user={@current_user}
+    id={"zenodo-metadata-form-#{@parent_id}"} 
+  />
+
+</Bonfire.UI.Common.OpenModalLive>
