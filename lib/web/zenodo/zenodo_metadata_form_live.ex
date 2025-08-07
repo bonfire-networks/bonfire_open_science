@@ -28,31 +28,41 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     current_user = socket.assigns.current_user
 
     # Extract post title
-    title = e(post, :post_content, :name, nil) || 
-            e(post, :post_content, :html_body, "") |> text_only() |> String.slice(0..100) |> String.trim()
+    title =
+      e(post, :post_content, :name, nil) ||
+        e(post, :post_content, :html_body, "")
+        |> text_only()
+        |> String.slice(0..100)
+        |> String.trim()
 
     # Extract description
-    description = e(post, :post_content, :summary, nil) || 
-                 e(post, :post_content, :html_body, "") |> text_only() |> String.slice(0..500) |> String.trim()
+    description =
+      e(post, :post_content, :summary, nil) ||
+        e(post, :post_content, :html_body, "")
+        |> text_only()
+        |> String.slice(0..500)
+        |> String.trim()
 
     # Get publication date
     publication_date = e(post, :inserted_at, nil) || Date.utc_today()
     formatted_date = format_date(publication_date)
 
     # Get author information
-    author_name = e(current_user, :profile, :name, nil) || 
-                 e(current_user, :character, :username, "Unknown Author")
-    
+    author_name =
+      e(current_user, :profile, :name, nil) ||
+        e(current_user, :character, :username, "Unknown Author")
+
     # Get author affiliation
-    author_affiliation = e(current_user, :profile, :website, "") || 
-                        e(current_user, :profile, :location, "")
+    author_affiliation =
+      e(current_user, :profile, :website, "") ||
+        e(current_user, :profile, :location, "")
 
     initial_creator = %{
       "name" => author_name,
       "orcid" => "",
       "affiliation" => author_affiliation
     }
-    
+
     # Extract tags/keywords if available
     keywords = extract_keywords(post)
 
@@ -70,15 +80,16 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     |> assign(metadata: metadata)
     |> assign(creators: [initial_creator])
   end
-  
+
   defp text_only(html) when is_binary(html) do
     html
     |> String.replace(~r/<[^>]*>/, " ")
     |> String.replace(~r/\s+/, " ")
     |> String.trim()
   end
+
   defp text_only(_), do: ""
-  
+
   defp extract_keywords(post) do
     # TODO: Extract actual tags from post if they exist
     # For now, return empty string
@@ -96,7 +107,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
       "orcid" => "",
       "affiliation" => ""
     }
-    
+
     creators = socket.assigns.creators ++ [new_creator]
     {:noreply, assign(socket, creators: creators)}
   end
@@ -104,34 +115,37 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
   def handle_event("remove_creator", %{"index" => index}, socket) do
     # Handle both string and integer index values
     index = if is_binary(index), do: String.to_integer(index), else: index
-    
+
     # Instead of deleting, mark as hidden to preserve indices
-    creators = List.update_at(socket.assigns.creators, index, fn creator ->
-      Map.put(creator, "_hidden", true)
-    end)
-    
+    creators =
+      List.update_at(socket.assigns.creators, index, fn creator ->
+        Map.put(creator, "_hidden", true)
+      end)
+
     # Check if we still have at least one visible creator
     visible_count = Enum.count(creators, fn c -> not Map.get(c, "_hidden", false) end)
-    
+
     if visible_count == 0 do
       # Unhide the first creator if all are hidden
-      creators = List.update_at(creators, 0, fn creator ->
-        Map.delete(creator, "_hidden")
-      end)
+      creators =
+        List.update_at(creators, 0, fn creator ->
+          Map.delete(creator, "_hidden")
+        end)
     end
-    
+
     {:noreply, assign(socket, creators: creators)}
   end
 
   def handle_event("update_creators", %{"creators" => creators_params}, socket) do
     # Parse the creators params which come in as a map with string keys like "0", "1", etc.
-    creators = creators_params
-                |> Enum.sort_by(fn {k, _v} -> String.to_integer(k) end)
-                |> Enum.map(fn {_index, creator} -> creator end)
-    
+    creators =
+      creators_params
+      |> Enum.sort_by(fn {k, _v} -> String.to_integer(k) end)
+      |> Enum.map(fn {_index, creator} -> creator end)
+
     {:noreply, assign(socket, creators: creators)}
   end
-  
+
   def handle_event("update_creators", _, socket) do
     # Handle case where creators params are missing
     {:noreply, socket}
@@ -139,16 +153,16 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
 
   def handle_event("validate", %{"metadata" => params}, socket) do
     errors = validate_metadata(params, socket.assigns.creators)
-    
+
     metadata = Map.merge(socket.assigns.metadata, params)
-    
+
     {:noreply, socket |> assign(metadata: metadata) |> assign(errors: errors)}
   end
 
   def handle_event("submit", %{"metadata" => params}, socket) do
     metadata = Map.merge(socket.assigns.metadata, params)
     errors = validate_metadata(metadata, socket.assigns.creators)
-    
+
     if Enum.empty?(errors) do
       {:noreply, socket |> assign(submitting: true) |> submit_to_zenodo(metadata)}
     else
@@ -158,37 +172,43 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
 
   defp validate_metadata(metadata, creators) do
     errors = %{}
-    
+
     # Validate title
-    errors = if is_nil(metadata["title"]) or String.trim(metadata["title"]) == "" do
-      Map.put(errors, :title, "Title is required")
-    else
-      if String.length(metadata["title"]) > 500 do
-        Map.put(errors, :title, "Title must be less than 500 characters")
+    errors =
+      if is_nil(metadata["title"]) or String.trim(metadata["title"]) == "" do
+        Map.put(errors, :title, "Title is required")
+      else
+        if String.length(metadata["title"]) > 500 do
+          Map.put(errors, :title, "Title must be less than 500 characters")
+        else
+          errors
+        end
+      end
+
+    # Validate description
+    errors =
+      if is_nil(metadata["description"]) or
+           String.length(String.trim(metadata["description"])) < 10 do
+        Map.put(errors, :description, "Description must be at least 10 characters")
       else
         errors
       end
-    end
-    
-    # Validate description
-    errors = if is_nil(metadata["description"]) or String.length(String.trim(metadata["description"])) < 10 do
-      Map.put(errors, :description, "Description must be at least 10 characters")
-    else
-      errors
-    end
-    
+
     # Validate at least one visible creator with name
     visible_creators = Enum.reject(creators, fn c -> Map.get(c, "_hidden", false) end)
-    has_valid_creator = Enum.any?(visible_creators, fn c -> 
-      c["name"] != nil and String.trim(c["name"]) != ""
-    end)
-    
-    errors = if not has_valid_creator do
-      Map.put(errors, :creators, "At least one author is required")
-    else
-      errors
-    end
-    
+
+    has_valid_creator =
+      Enum.any?(visible_creators, fn c ->
+        c["name"] != nil and String.trim(c["name"]) != ""
+      end)
+
+    errors =
+      if not has_valid_creator do
+        Map.put(errors, :creators, "At least one author is required")
+      else
+        errors
+      end
+
     # Validate license if access_right is open or embargoed
     if metadata["access_right"] in ["open", "embargoed"] do
       if is_nil(metadata["license"]) or metadata["license"] == "" do
@@ -205,14 +225,14 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     # TODO: Implement actual Zenodo API submission
     # For now, just simulate success after a delay
     Process.send_after(self(), :submission_complete, 2000)
-    
+
     socket
   end
 
   def handle_info(:submission_complete, socket) do
     # TODO: Handle actual response from Zenodo API
-    {:noreply, 
-     socket 
+    {:noreply,
+     socket
      |> assign(submitting: false)
      |> put_flash(:info, "DOI created successfully!")
      |> push_event("modal", %{action: "close", id: "zenodo-doi-modal"})}
