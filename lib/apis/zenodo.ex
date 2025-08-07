@@ -68,7 +68,7 @@ defmodule Bonfire.OpenScience.Zenodo do
   """
   def create_and_upload(metadata, files, access_token, opts \\ []) do
     with {:ok, deposit} <- create_deposit(metadata, access_token, opts),
-         bucket_url = e(deposit, "links", "bucket"),
+         bucket_url = e(deposit, "links", "bucket", nil),
          {:ok, file_infos} <- upload_files(bucket_url, files, access_token),
          deposit_id = e(deposit, "id", nil),
          result = %{deposit: deposit, files: file_infos} do
