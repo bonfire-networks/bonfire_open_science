@@ -57,20 +57,18 @@ defmodule Bonfire.OpenScience.ORCID do
 
   def extract_from_path(_), do: nil
 
-  @doc """
-  Finds ORCID ID from a list of user aliases.
-  Returns the first valid ORCID found or nil.
-  """
-  def find_from_aliases(aliases) when is_list(aliases) do
-    Enum.find_value(aliases, fn alias ->
-      if e(alias, :edge, :object, :media_type, "") == "orcid" do
-        path = e(alias, :edge, :object, :path, "")
-        extract_from_path(path)
-      end
-    end)
-  end
+  def user_orcid_id(user) do
+    case OpenScience.user_alias_by_type(user, "orcid")
+         |> e(:path, nil)
+         |> extract_from_path() do
+      nil ->
+        {:error, :no_orcid}
 
-  def find_from_aliases(_), do: nil
+      orcid_id ->
+        {:ok, orcid_id}
+        # validate(orcid_id)
+    end
+  end
 
   defp fetch_orcid_data(metadata, type \\ "record")
 

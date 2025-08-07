@@ -1,6 +1,7 @@
 defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
   use Bonfire.UI.Common.Web, :stateful_component
   import Untangle
+  alias Bonfire.OpenScience.Zenodo
 
   prop post, :map, required: true
   prop current_user, :map, required: true
@@ -222,20 +223,51 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
   end
 
   defp submit_to_zenodo(socket, metadata) do
-    # TODO: Implement actual Zenodo API submission
-    # For now, just simulate success after a delay
-    Process.send_after(self(), :submission_complete, 2000)
+    # Include creators in the metadata for the API call
+    full_metadata = Map.put(metadata, "creators", socket.assigns.creators)
 
-    socket
-  end
+    case Zenodo.create_deposit_for_user(current_user(socket), full_metadata, auto_publish: true) do
+      {:ok, %{published: published_record, deposit: deposit}} when published_record != false ->
+        doi = e(deposit, "metadata", "prereserve_doi", "doi", nil)
+        # deposit_id = e(deposit, "id", nil)
 
-  def handle_info(:submission_complete, socket) do
-    # TODO: Handle actual response from Zenodo API
-    {:noreply,
-     socket
-     |> assign(submitting: false)
-     |> put_flash(:info, "DOI created successfully!")
-     |> push_event("modal", %{action: "close", id: "zenodo-doi-modal"})}
+        socket
+        |> assign(submitting: false)
+        |> assign_flash(:info, "Draft created with DOI: #{doi}")
+
+      {:ok, %{deposit: deposit}} ->
+        doi = e(deposit, "metadata", "prereserve_doi", "doi", nil)
+        # deposit_id = e(deposit, "id", nil)
+
+        socket
+        |> assign(submitting: false)
+        |> assign_flash(:info, "Successfully published! DOI: #{doi}")
+
+      # |> push_event("modal", %{action: "close", id: "zenodo-doi-modal"})
+
+      {:error, reason} ->
+        error_msg =
+          case reason do
+            :no_zenodo_credentials ->
+              "Please connect your Zenodo account first"
+
+            :invalid_zenodo_credentials ->
+              "Invalid Zenodo credentials - please reconnect your account"
+
+            :zenodo_api_error ->
+              "Zenodo API error occurred"
+
+            :request_failed ->
+              "Network error - please try again"
+
+            _ ->
+              "Failed to create DOI: #{inspect(reason)}"
+          end
+
+        socket
+        |> assign(submitting: false)
+        |> assign_error(error_msg)
+    end
   end
 
   def upload_type_options do

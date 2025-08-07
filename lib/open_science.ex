@@ -95,6 +95,11 @@ defmodule Bonfire.OpenScience do
 
   def repo, do: Config.repo()
 
+  def user_alias_by_type(user, type) do
+    user_aliases(user)
+    |> find_from_aliases(type)
+  end
+
   def user_aliases(user) do
     Utils.maybe_apply(
       Bonfire.Social.Graph.Aliases,
@@ -104,6 +109,20 @@ defmodule Bonfire.OpenScience do
     )
     |> e(:edges, [])
   end
+
+  @doc """
+  Finds a provider ID from a list of user aliases.
+  Returns the first valid one found or nil.
+  """
+  def find_from_aliases(aliases, type) when is_list(aliases) do
+    Enum.find_value(aliases, fn alias ->
+      if e(alias, :edge, :object, :media_type, nil) == type do
+        e(alias, :edge, :object, nil)
+      end
+    end)
+  end
+
+  def find_from_aliases(_), do: nil
 
   def is_research?(url, meta) do
     # Check various sources for research indicators

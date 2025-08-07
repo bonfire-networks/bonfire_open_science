@@ -13,7 +13,7 @@ defmodule Bonfire.OpenScience.Publications do
   Gets author information from OpenAlex for a user.
   """
   def get_author_info(user) do
-    with {:ok, orcid_id} <- get_user_orcid(user),
+    with {:ok, orcid_id} <- OpenScience.get_user_orcid(user),
          {:ok, author_data} <- Client.fetch_author(orcid_id) do
       {:ok, author_data}
     else
@@ -26,7 +26,7 @@ defmodule Bonfire.OpenScience.Publications do
   Gets the most recent publication for a user.
   """
   def get_recent_publication(user) do
-    with {:ok, orcid_id} <- get_user_orcid(user),
+    with {:ok, orcid_id} <- OpenScience.get_user_orcid(user),
          {:ok, publication} <- Client.fetch_recent_publication(orcid_id) do
       {:ok, publication}
     else
@@ -40,7 +40,7 @@ defmodule Bonfire.OpenScience.Publications do
   Gets the most cited publication for a user.
   """
   def get_most_cited_publication(user) do
-    with {:ok, orcid_id} <- get_user_orcid(user),
+    with {:ok, orcid_id} <- OpenScience.get_user_orcid(user),
          {:ok, publication} <- Client.fetch_most_cited_publication(orcid_id) do
       {:ok, publication}
     else
@@ -54,7 +54,7 @@ defmodule Bonfire.OpenScience.Publications do
   Gets publication types distribution for a user.
   """
   def get_publication_types(user) do
-    with {:ok, orcid_id} <- get_user_orcid(user),
+    with {:ok, orcid_id} <- OpenScience.get_user_orcid(user),
          {:ok, works_by_type} <- Client.fetch_works_by_type(orcid_id) do
       {:ok, works_by_type}
     else
@@ -68,7 +68,7 @@ defmodule Bonfire.OpenScience.Publications do
   More efficient than making individual requests.
   """
   def get_all_publication_data(user) do
-    with {:ok, orcid_id} <- get_user_orcid(user) do
+    with {:ok, orcid_id} <- ORCID.user_orcid_id(user) do
       # Fetch basic data concurrently
       %{author_data: author_data, works_by_type: works_by_type} =
         Client.fetch_complete_data(orcid_id)
@@ -142,15 +142,6 @@ defmodule Bonfire.OpenScience.Publications do
   end
 
   # Private helpers
-
-  defp get_user_orcid(user) do
-    aliases = OpenScience.user_aliases(user)
-
-    case ORCID.find_from_aliases(aliases) do
-      nil -> {:error, :no_orcid}
-      orcid_id -> ORCID.validate(orcid_id)
-    end
-  end
 
   defp get_publication_result(results, key) do
     case Enum.find(results, fn {result_key, _} -> result_key == key end) do
