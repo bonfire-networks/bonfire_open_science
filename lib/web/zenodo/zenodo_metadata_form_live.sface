@@ -20,6 +20,23 @@
       {/if}
     </label>
 
+    {!-- Include Comments Toggle --}
+    <div class="form-control">
+      <label class="label gap-3 cursor-pointer">
+        <input 
+          type="checkbox" 
+          name="include_comments"
+          checked={@include_comments}
+          phx-click="toggle_include_comments"
+          phx-target={@myself}
+          class="toggle toggle-primary toggle-sm"
+        />
+        <span class="label-text">
+          <span class="text-base-content">{l("Include thread comments")}</span>
+        </span>
+      </label>
+    </div>
+
     {!-- Title --}
     <label class="input w-full">
       <span class="label">{l("Title")}</span>

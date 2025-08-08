@@ -10,6 +10,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
   data creators, :list, default: []
   data errors, :map, default: %{}
   data submitting, :boolean, default: false
+  data include_comments, :boolean, default: true
 
   def mount(socket) do
     {:ok, socket}
@@ -64,8 +65,9 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
       "affiliation" => author_affiliation
     }
 
-    # Get thread participants as co-authors
-    creators = [initial_creator | get_thread_participants_as_creators(post, current_user)]
+    # Get thread participants as co-authors (included by default)
+    thread_participants = get_thread_participants_as_creators(post, current_user)
+    creators = [initial_creator | thread_participants]
 
     # Extract tags/keywords if available
     keywords = extract_keywords(post)
@@ -134,6 +136,42 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
   defp format_date(%DateTime{} = dt), do: DateTime.to_date(dt) |> Date.to_iso8601()
   defp format_date(%Date{} = date), do: Date.to_iso8601(date)
   defp format_date(_), do: Date.utc_today() |> Date.to_iso8601()
+
+  def handle_event("toggle_include_comments", _, socket) do
+    include_comments = not socket.assigns.include_comments
+    
+    # Update creators list based on the toggle
+    creators = if include_comments do
+      # Add thread participants
+      post = socket.assigns.post
+      current_user = socket.assigns.current_user
+      
+      # Keep the primary author
+      primary_author = List.first(socket.assigns.creators) || %{
+        "name" => e(current_user, :profile, :name, nil) || 
+                  e(current_user, :character, :username, "Unknown Author"),
+        "orcid" => "",
+        "affiliation" => e(current_user, :profile, :website, "") ||
+                        e(current_user, :profile, :location, "")
+      }
+      
+      # Get thread participants
+      thread_participants = get_thread_participants_as_creators(post, current_user)
+      
+      [primary_author | thread_participants]
+    else
+      # Keep only the primary author (first in the list)
+      case socket.assigns.creators do
+        [first | _rest] -> [first]
+        [] -> []
+      end
+    end
+    
+    {:noreply, 
+     socket
+     |> assign(include_comments: include_comments)
+     |> assign(creators: creators)}
+  end
 
   def handle_event("remove_creator", %{"index" => index}, socket) do
     # Handle both string and integer index values
@@ -288,7 +326,10 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
 
   defp submit_to_zenodo(socket, metadata) do
     # Include creators in the metadata for the API call
-    full_metadata = Map.put(metadata, "creators", socket.assigns.creators)
+    full_metadata = 
+      metadata
+      |> Map.put("creators", socket.assigns.creators)
+      |> Map.put("include_comments", socket.assigns.include_comments)
 
     case Zenodo.create_deposit_for_user(current_user(socket), full_metadata, auto_publish: true) do
       {:ok, %{published: published_record, deposit: deposit}} when published_record != false ->
