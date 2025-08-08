@@ -1,6 +1,5 @@
 defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
   use Bonfire.UI.Common.Web, :stateful_component
-  import Untangle
   alias Bonfire.OpenScience.Zenodo
 
   prop post, :map, required: true
@@ -91,9 +90,8 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
 
   defp text_only(_), do: ""
 
-  defp extract_keywords(post) do
+  defp extract_keywords(_post) do
     # TODO: Extract actual tags from post if they exist
-    # For now, return empty string
     ""
   end
 
@@ -101,17 +99,6 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
   defp format_date(%DateTime{} = dt), do: DateTime.to_date(dt) |> Date.to_iso8601()
   defp format_date(%Date{} = date), do: Date.to_iso8601(date)
   defp format_date(_), do: Date.utc_today() |> Date.to_iso8601()
-
-  def handle_event("add_creator", _, socket) do
-    new_creator = %{
-      "name" => "",
-      "orcid" => "",
-      "affiliation" => ""
-    }
-
-    creators = socket.assigns.creators ++ [new_creator]
-    {:noreply, assign(socket, creators: creators)}
-  end
 
   def handle_event("remove_creator", %{"index" => index}, socket) do
     # Handle both string and integer index values
@@ -126,50 +113,92 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     # Check if we still have at least one visible creator
     visible_count = Enum.count(creators, fn c -> not Map.get(c, "_hidden", false) end)
 
-    if visible_count == 0 do
+    creators = if visible_count == 0 do
       # Unhide the first creator if all are hidden
-      creators =
-        List.update_at(creators, 0, fn creator ->
-          Map.delete(creator, "_hidden")
-        end)
+      List.update_at(creators, 0, fn creator ->
+        Map.delete(creator, "_hidden")
+      end)
+    else
+      creators
     end
 
     {:noreply, assign(socket, creators: creators)}
   end
 
-  def handle_event("update_creators", %{"creators" => creators_params}, socket) do
-    # Parse the creators params which come in as a map with string keys like "0", "1", etc.
-    creators =
-      creators_params
-      |> Enum.sort_by(fn {k, _v} -> String.to_integer(k) end)
-      |> Enum.map(fn {_index, creator} -> creator end)
-
-    {:noreply, assign(socket, creators: creators)}
-  end
-
-  def handle_event("update_creators", _, socket) do
-    # Handle case where creators params are missing
-    {:noreply, socket}
-  end
-
-  def handle_event("validate", %{"metadata" => params}, socket) do
-    errors = validate_metadata(params, socket.assigns.creators)
-
-    metadata = Map.merge(socket.assigns.metadata, params)
+  def handle_event("validate", params, socket) do
+    metadata_params = Map.get(params, "metadata", %{})
+    existing_metadata = socket.assigns.metadata
+    
+    # Preserve existing values for fields not in params
+    metadata = 
+      Enum.reduce(existing_metadata, %{}, fn {key, value}, acc ->
+        new_value = Map.get(metadata_params, key, value)
+        Map.put(acc, key, new_value)
+      end)
+    
+    creators = if Map.has_key?(params, "creators") do
+      extract_creators_from_params(params)
+    else
+      socket.assigns.creators
+    end
+    
+    errors = validate_metadata(metadata, creators)
 
     {:noreply, socket |> assign(metadata: metadata) |> assign(errors: errors)}
   end
 
-  def handle_event("submit", %{"metadata" => params}, socket) do
-    metadata = Map.merge(socket.assigns.metadata, params)
-    errors = validate_metadata(metadata, socket.assigns.creators)
+  def handle_event("submit", params, socket) do
+    case Map.get(params, "action") do
+      "add_creator" -> handle_add_creator_from_form(params, socket)
+      _ -> handle_form_submit(params, socket)
+    end
+  end
+  
+  defp handle_add_creator_from_form(params, socket) do
+    current_creators = extract_creators_from_params(params)
+    
+    new_creator = %{
+      "name" => "",
+      "orcid" => "",
+      "affiliation" => ""
+    }
+
+    creators = current_creators ++ [new_creator]
+    metadata_params = Map.get(params, "metadata", %{})
+    metadata = Map.merge(socket.assigns.metadata, metadata_params)
+    
+    {:noreply, 
+     socket
+     |> assign(creators: creators)
+     |> assign(metadata: metadata)}
+  end
+  
+  defp handle_form_submit(params, socket) do
+    creators = extract_creators_from_params(params)
+    metadata_params = Map.get(params, "metadata", %{})
+    metadata = Map.merge(socket.assigns.metadata, metadata_params)
+    
+    errors = validate_metadata(metadata, creators)
 
     if Enum.empty?(errors) do
-      {:noreply, socket |> assign(submitting: true) |> submit_to_zenodo(metadata)}
+      {:noreply, 
+       socket 
+       |> assign(creators: creators)
+       |> assign(submitting: true) 
+       |> submit_to_zenodo(metadata)}
     else
       {:noreply, assign(socket, errors: errors)}
     end
   end
+  
+  defp extract_creators_from_params(%{"creators" => creators_params}) when is_map(creators_params) do
+    creators_params
+    |> Enum.sort_by(fn {k, _v} -> String.to_integer(k) end)
+    |> Enum.map(fn {_index, creator} -> creator end)
+    |> Enum.reject(fn creator -> Map.get(creator, "_hidden", false) end)
+  end
+  
+  defp extract_creators_from_params(_), do: []
 
   defp validate_metadata(metadata, creators) do
     errors = %{}
@@ -229,7 +258,6 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     case Zenodo.create_deposit_for_user(current_user(socket), full_metadata, auto_publish: true) do
       {:ok, %{published: published_record, deposit: deposit}} when published_record != false ->
         doi = e(deposit, "metadata", "prereserve_doi", "doi", nil)
-        # deposit_id = e(deposit, "id", nil)
 
         socket
         |> assign(submitting: false)
@@ -237,13 +265,10 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
 
       {:ok, %{deposit: deposit}} ->
         doi = e(deposit, "metadata", "prereserve_doi", "doi", nil)
-        # deposit_id = e(deposit, "id", nil)
 
         socket
         |> assign(submitting: false)
         |> assign_flash(:info, "Successfully published! DOI: #{doi}")
-
-      # |> push_event("modal", %{action: "close", id: "zenodo-doi-modal"})
 
       {:error, reason} ->
         error_msg =

@@ -3,6 +3,7 @@ defmodule Bonfire.OpenScience do
 
   use Bonfire.Common.Config
   alias Bonfire.Common.Utils
+  alias Bonfire.OpenScience.ORCID
   use Bonfire.Common.E
   import Untangle
 
@@ -53,6 +54,16 @@ defmodule Bonfire.OpenScience do
       )
     )
   end
+
+  def get_user_orcid(user) do
+    aliases = user_aliases(user)
+
+    case find_from_aliases(aliases) do
+      nil -> {:error, :no_orcid}
+      orcid_id -> ORCID.validate(orcid_id)
+    end
+  end
+
 
   defp fetch_url_metadata(url, opts) do
     # Special handling for ORCID work URLs

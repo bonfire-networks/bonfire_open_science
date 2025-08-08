@@ -1,14 +1,20 @@
 <div class="zenodo-metadata-form mt-4">
-  <Form for={:metadata} submit="submit" change="validate" class="flex flex-col gap-4">
+  <Form for={:metadata} id="metadata" submit="submit" change="validate" class="flex flex-col gap-4">
     {!-- Upload Type --}
     <label class="input w-full">
       <span class="label">{l("Upload type")}</span>
-      <Select
-        field={:upload_type}
-        options={upload_type_options()}
-        value={@metadata["upload_type"]}
+      <select
+        name="metadata[upload_type]"
         class="w-full"
-      />
+        phx-change="validate"
+        phx-target={@myself}
+      >
+        {#for {label, value} <- upload_type_options()}
+          <option value={value} selected={@metadata["upload_type"] == value}>
+            {label}
+          </option>
+        {/for}
+      </select>
       {#if Map.has_key?(@errors, :upload_type)}
         <span class="text-error text-sm">{@errors.upload_type}</span>
       {/if}
@@ -38,27 +44,24 @@
               name={"creators[#{index}][name]"}
               value={creator["name"]}
               placeholder={l("Family name, Given names")}
-              phx-change="update_creators"
-              phx-target={@myself}
               class="input input-sm flex-1"
+              id={"creator-#{index}-name"}
             />
             <input
               type="text"
               name={"creators[#{index}][orcid]"}
               value={creator["orcid"]}
               placeholder="0000-0000-0000-0000"
-              phx-change="update_creators"
-              phx-target={@myself}
               class="input input-sm w-48"
+              id={"creator-#{index}-orcid"}
             />
             <input
               type="text"
               name={"creators[#{index}][affiliation]"}
               value={creator["affiliation"]}
               placeholder={l("Affiliation")}
-              phx-change="update_creators"
-              phx-target={@myself}
               class="input input-sm flex-1"
+              id={"creator-#{index}-affiliation"}
             />
             {#if index > 0}
               <button
@@ -72,18 +75,18 @@
               >
                 <Iconify.iconify icon="carbon:close" class="w-4 h-4" />
               </button>
-            {#else}
-              <div class="" />
             {/if}
           </div>
         {/for}
       </div>
 
       <button
-        type="button"
-        phx-click="add_creator"
-        phx-target={@myself}
+        type="submit"
+        name="action"
+        value="add_creator"
+        phx-disable-with="Adding..."
         class="btn btn-primary btn-soft btn-sm"
+        id="add-creator-btn"
       >
         <Iconify.iconify icon="carbon:add" class="w-4 h-4 mr-1" />
         {l("Add Author")}
@@ -132,6 +135,7 @@
               value={value}
               checked={@metadata["access_right"] == value}
               phx-change="validate"
+              phx-target={@myself}
               class="radio radio-sm radio-primary"
             />
             <span class="label-text">{label}</span>
@@ -144,25 +148,29 @@
     </fieldset>
 
     {!-- License (conditional) --}
-    {#if @metadata["access_right"] in ["open", "embargoed"]}
-      <fieldset class="fieldset mb-0 w-full">
-        <label class="input w-full">
-          <span class="label">{l("License")}</span>
-          <Select
-            field={:license}
-            options={license_options()}
-            value={@metadata["license"]}
-            class="w-full"
-          />
-          {#if Map.has_key?(@errors, :license)}
-            <span class="text-error text-sm">{@errors.license}</span>
-          {/if}
-        </label>
-        <a href="https://choosealicense.com" target="_blank" class="link link-primary text-sm">
-          {l("Help choosing a license")}
-        </a>
-      </fieldset>
-    {/if}
+    <fieldset class="fieldset mb-0 w-full" style={if @metadata["access_right"] not in ["open", "embargoed"], do: "display: none", else: ""}>
+      <label class="input w-full">
+        <span class="label">{l("License")}</span>
+        <select
+          name="metadata[license]"
+          class="w-full"
+          phx-change="validate"
+          phx-target={@myself}
+        >
+          {#for {label, value} <- license_options()}
+            <option value={value} selected={@metadata["license"] == value}>
+              {label}
+            </option>
+          {/for}
+        </select>
+        {#if Map.has_key?(@errors, :license)}
+          <span class="text-error text-sm">{@errors.license}</span>
+        {/if}
+      </label>
+      <a href="https://choosealicense.com" target="_blank" class="link link-primary text-sm">
+        {l("Help choosing a license")}
+      </a>
+    </fieldset>
 
     {!-- Keywords --}
     <label class="input w-full">
