@@ -1,5 +1,6 @@
 defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
   use Bonfire.UI.Common.Web, :stateful_component
+  import Untangle
   alias Bonfire.OpenScience.Zenodo
 
   prop post, :map, required: true
@@ -63,6 +64,9 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
       "affiliation" => author_affiliation
     }
 
+    # Get thread participants as co-authors
+    creators = [initial_creator | get_thread_participants_as_creators(post, current_user)]
+
     # Extract tags/keywords if available
     keywords = extract_keywords(post)
 
@@ -78,7 +82,38 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
 
     socket
     |> assign(metadata: metadata)
-    |> assign(creators: [initial_creator])
+    |> assign(creators: creators)
+  end
+  
+  defp get_thread_participants_as_creators(post, current_user) do
+    # Get thread ID from the post
+    thread_id = e(post, :replied, :thread_id, nil) || e(post, :id, nil)
+    
+    if thread_id do
+      # Get thread participants using Bonfire.Social.Threads
+      case Bonfire.Social.Threads.list_participants(post, thread_id, current_user: current_user, limit: 20) do
+        participants when is_list(participants) ->
+          participants
+          |> Enum.reject(fn p -> 
+            # Exclude the current user (already added as primary author)
+            e(p, :id, nil) == e(current_user, :id, nil)
+          end)
+          |> Enum.map(fn participant ->
+            %{
+              "name" => e(participant, :profile, :name, nil) || 
+                        e(participant, :character, :username, "Unknown"),
+              "orcid" => "",
+              "affiliation" => e(participant, :profile, :website, "") ||
+                              e(participant, :profile, :location, "")
+            }
+          end)
+          |> Enum.uniq_by(fn c -> c["name"] end) # Remove duplicates by name
+        _ ->
+          []
+      end
+    else
+      []
+    end
   end
 
   defp text_only(html) when is_binary(html) do
