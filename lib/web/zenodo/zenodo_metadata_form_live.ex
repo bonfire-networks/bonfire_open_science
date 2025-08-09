@@ -4,13 +4,13 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
   alias Bonfire.OpenScience.Zenodo
 
   prop post, :map, required: true
-  prop current_user, :map, required: true
+  prop participants, :any, default: nil
+  prop include_comments, :boolean, default: true
 
   data metadata, :map, default: %{}
   data creators, :list, default: []
   data errors, :map, default: %{}
   data submitting, :boolean, default: false
-  data include_comments, :boolean, default: true
 
   def mount(socket) do
     {:ok, socket}
@@ -27,7 +27,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
 
   defp populate_from_post(socket) do
     post = socket.assigns.post
-    current_user = socket.assigns.current_user
+    current_user = current_user(socket)
 
     # Extract post title
     title =
@@ -61,12 +61,14 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
 
     initial_creator = %{
       "name" => author_name,
-      "orcid" => "",
+      "orcid" => Bonfire.OpenScience.ORCID.user_orcid_id(current_user) |> ok_unwrap(),
       "affiliation" => author_affiliation
     }
 
     # Get thread participants as co-authors (included by default)
-    thread_participants = get_thread_participants_as_creators(post, current_user)
+    thread_participants =
+      thread_participants_as_creators(e(assigns(socket), :participants, nil), post, current_user)
+
     creators = [initial_creator | thread_participants]
 
     # Extract tags/keywords if available
@@ -86,30 +88,39 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     |> assign(metadata: metadata)
     |> assign(creators: creators)
   end
-  
-  defp get_thread_participants_as_creators(post, current_user) do
+
+  defp thread_participants_as_creators(participants, post, current_user) do
     # Get thread ID from the post
-    thread_id = e(post, :replied, :thread_id, nil) || e(post, :id, nil)
-    
+    thread_id = e(post, :replied, :thread_id, nil) || id(post)
+
     if thread_id do
       # Get thread participants using Bonfire.Social.Threads
-      case Bonfire.Social.Threads.list_participants(post, thread_id, current_user: current_user, limit: 20) do
+      case participants ||
+             Bonfire.Social.Threads.list_participants(post, thread_id,
+               current_user: current_user,
+               limit: 20
+             ) do
         participants when is_list(participants) ->
           participants
-          |> Enum.reject(fn p -> 
+          |> Enum.reject(fn p ->
             # Exclude the current user (already added as primary author)
-            e(p, :id, nil) == e(current_user, :id, nil)
+            id(p) == e(current_user, :id, nil)
           end)
           |> Enum.map(fn participant ->
             %{
-              "name" => e(participant, :profile, :name, nil) || 
-                        e(participant, :character, :username, "Unknown"),
-              "orcid" => "",
-              "affiliation" => e(participant, :profile, :website, "") ||
-                              e(participant, :profile, :location, "")
+              "id" => id(participant),
+              "name" =>
+                e(participant, :profile, :name, nil) ||
+                  e(participant, :character, :username, "Unknown"),
+              "orcid" => Bonfire.OpenScience.ORCID.user_orcid_id(participant) |> ok_unwrap(),
+              "affiliation" =>
+                e(participant, :profile, :website, "") ||
+                  e(participant, :profile, :location, "")
             }
           end)
-          |> Enum.uniq_by(fn c -> c["name"] end) # Remove duplicates by name
+          # Remove any duplicates 
+          |> Enum.uniq_by(fn c -> c["orcid"] || c["id"] end)
+
         _ ->
           []
       end
@@ -138,36 +149,34 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
   defp format_date(_), do: Date.utc_today() |> Date.to_iso8601()
 
   def handle_event("toggle_include_comments", _, socket) do
-    include_comments = not socket.assigns.include_comments
-    
+    # toggle
+    include_comments = !e(assigns(socket), :include_comments, true)
+
     # Update creators list based on the toggle
-    creators = if include_comments do
-      # Add thread participants
-      post = socket.assigns.post
-      current_user = socket.assigns.current_user
-      
-      # Keep the primary author
-      primary_author = List.first(socket.assigns.creators) || %{
-        "name" => e(current_user, :profile, :name, nil) || 
-                  e(current_user, :character, :username, "Unknown Author"),
-        "orcid" => "",
-        "affiliation" => e(current_user, :profile, :website, "") ||
-                        e(current_user, :profile, :location, "")
-      }
-      
-      # Get thread participants
-      thread_participants = get_thread_participants_as_creators(post, current_user)
-      
-      [primary_author | thread_participants]
-    else
-      # Keep only the primary author (first in the list)
-      case socket.assigns.creators do
-        [first | _rest] -> [first]
-        [] -> []
+    creators =
+      if include_comments do
+        # Add thread participants
+        post = socket.assigns.post
+        current_user = current_user(socket)
+
+        # Get thread participants
+        thread_participants =
+          thread_participants_as_creators(
+            e(assigns(socket), :participants, nil),
+            post,
+            current_user
+          )
+
+        socket.assigns.creators ++ thread_participants
+      else
+        # Keep only the primary author (first in the list)
+        case socket.assigns.creators do
+          [first | _rest] -> [first]
+          [] -> []
+        end
       end
-    end
-    
-    {:noreply, 
+
+    {:noreply,
      socket
      |> assign(include_comments: include_comments)
      |> assign(creators: creators)}
@@ -186,14 +195,15 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     # Check if we still have at least one visible creator
     visible_count = Enum.count(creators, fn c -> not Map.get(c, "_hidden", false) end)
 
-    creators = if visible_count == 0 do
-      # Unhide the first creator if all are hidden
-      List.update_at(creators, 0, fn creator ->
-        Map.delete(creator, "_hidden")
-      end)
-    else
-      creators
-    end
+    creators =
+      if visible_count == 0 do
+        # Unhide the first creator if all are hidden
+        List.update_at(creators, 0, fn creator ->
+          Map.delete(creator, "_hidden")
+        end)
+      else
+        creators
+      end
 
     {:noreply, assign(socket, creators: creators)}
   end
@@ -201,20 +211,21 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
   def handle_event("validate", params, socket) do
     metadata_params = Map.get(params, "metadata", %{})
     existing_metadata = socket.assigns.metadata
-    
+
     # Preserve existing values for fields not in params
-    metadata = 
+    metadata =
       Enum.reduce(existing_metadata, %{}, fn {key, value}, acc ->
         new_value = Map.get(metadata_params, key, value)
         Map.put(acc, key, new_value)
       end)
-    
-    creators = if Map.has_key?(params, "creators") do
-      extract_creators_from_params(params)
-    else
-      socket.assigns.creators
-    end
-    
+
+    creators =
+      if Map.has_key?(params, "creators") do
+        extract_creators_from_params(params)
+      else
+        socket.assigns.creators
+      end
+
     errors = validate_metadata(metadata, creators)
 
     {:noreply, socket |> assign(metadata: metadata) |> assign(errors: errors)}
@@ -226,10 +237,10 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
       _ -> handle_form_submit(params, socket)
     end
   end
-  
+
   defp handle_add_creator_from_form(params, socket) do
     current_creators = extract_creators_from_params(params)
-    
+
     new_creator = %{
       "name" => "",
       "orcid" => "",
@@ -239,38 +250,39 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     creators = current_creators ++ [new_creator]
     metadata_params = Map.get(params, "metadata", %{})
     metadata = Map.merge(socket.assigns.metadata, metadata_params)
-    
-    {:noreply, 
+
+    {:noreply,
      socket
      |> assign(creators: creators)
      |> assign(metadata: metadata)}
   end
-  
+
   defp handle_form_submit(params, socket) do
     creators = extract_creators_from_params(params)
     metadata_params = Map.get(params, "metadata", %{})
     metadata = Map.merge(socket.assigns.metadata, metadata_params)
-    
+
     errors = validate_metadata(metadata, creators)
 
     if Enum.empty?(errors) do
-      {:noreply, 
-       socket 
+      {:noreply,
+       socket
        |> assign(creators: creators)
-       |> assign(submitting: true) 
+       |> assign(submitting: true)
        |> submit_to_zenodo(metadata)}
     else
       {:noreply, assign(socket, errors: errors)}
     end
   end
-  
-  defp extract_creators_from_params(%{"creators" => creators_params}) when is_map(creators_params) do
+
+  defp extract_creators_from_params(%{"creators" => creators_params})
+       when is_map(creators_params) do
     creators_params
     |> Enum.sort_by(fn {k, _v} -> String.to_integer(k) end)
     |> Enum.map(fn {_index, creator} -> creator end)
     |> Enum.reject(fn creator -> Map.get(creator, "_hidden", false) end)
   end
-  
+
   defp extract_creators_from_params(_), do: []
 
   defp validate_metadata(metadata, creators) do
@@ -326,7 +338,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
 
   defp submit_to_zenodo(socket, metadata) do
     # Include creators in the metadata for the API call
-    full_metadata = 
+    full_metadata =
       metadata
       |> Map.put("creators", socket.assigns.creators)
       |> Map.put("include_comments", socket.assigns.include_comments)

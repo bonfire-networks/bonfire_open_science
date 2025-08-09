@@ -60,7 +60,7 @@ defmodule Bonfire.OpenScience.RuntimeConfig do
         %{
           "provider_name" => "ORCID metadata",
           "provider_url" => "orcid.org",
-          "fetch_function" => {Bonfire.OpenScience, :fetch_orcid_work_metadata},
+          "fetch_function" => {Bonfire.OpenScience, :maybe_fetch_orcid_work_metadata},
           "endpoints" => [
             %{
               "schemes" => [

@@ -4,6 +4,7 @@ defmodule Bonfire.OpenScience.ORCID do
   """
 
   use Bonfire.Common.Utils
+  alias Bonfire.OpenScience
   alias Bonfire.OpenScience.DOI
 
   # ORCID format: 0000-0000-0000-0000 (4 groups of 4 digits/X separated by hyphens)
@@ -38,7 +39,7 @@ defmodule Bonfire.OpenScience.ORCID do
       # Handle full ORCID URLs
       String.contains?(path, "orcid.org/") ->
         path
-        |> String.replace(~r{^https?://orcid\.org/}, "")
+        |> String.replace(~r{^https?://(sandbox\.)?orcid\.org/}, "")
         |> String.trim("/")
         |> case do
           "" -> nil

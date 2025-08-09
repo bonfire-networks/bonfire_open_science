@@ -55,20 +55,10 @@ defmodule Bonfire.OpenScience do
     )
   end
 
-  def get_user_orcid(user) do
-    aliases = user_aliases(user)
-
-    case find_from_aliases(aliases) do
-      nil -> {:error, :no_orcid}
-      orcid_id -> ORCID.validate(orcid_id)
-    end
-  end
-
-
-  defp fetch_url_metadata(url, opts) do
+  def fetch_url_metadata(url, opts) do
     # Special handling for ORCID work URLs
     if Bonfire.OpenScience.ORCID.is_orcid_work_url?(url) do
-      fetch_orcid_work_metadata(url, opts)
+      maybe_fetch_orcid_work_metadata(url, opts)
 
       # Default for other URLs
     else
@@ -76,8 +66,10 @@ defmodule Bonfire.OpenScience do
     end
   end
 
-  def fetch_orcid_work_metadata(url, opts \\ []) do
-    # Special handling for ORCID work URLs
+  @doc """
+  Tries to fetch metadata for a given ORCID work URL from both the ORCID API and the original source (eg. DOI), returning the merged result, or at least the available one.
+  """
+  def maybe_fetch_orcid_work_metadata(url, opts \\ []) do
     with {:ok, %{} = orcid_metadata} <-
            Bonfire.OpenScience.ORCID.fetch_orcid_work_metadata(url) |> flood("from orcid") do
       case e(orcid_metadata, "canonical_url", nil) do

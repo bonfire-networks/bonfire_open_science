@@ -13,7 +13,7 @@ defmodule Bonfire.OpenScience.Publications do
   Gets author information from OpenAlex for a user.
   """
   def get_author_info(user) do
-    with {:ok, orcid_id} <- OpenScience.get_user_orcid(user),
+    with {:ok, orcid_id} <- ORCID.user_orcid_id(user),
          {:ok, author_data} <- Client.fetch_author(orcid_id) do
       {:ok, author_data}
     else
@@ -26,7 +26,7 @@ defmodule Bonfire.OpenScience.Publications do
   Gets the most recent publication for a user.
   """
   def get_recent_publication(user) do
-    with {:ok, orcid_id} <- OpenScience.get_user_orcid(user),
+    with {:ok, orcid_id} <- ORCID.user_orcid_id(user),
          {:ok, publication} <- Client.fetch_recent_publication(orcid_id) do
       {:ok, publication}
     else
@@ -40,7 +40,7 @@ defmodule Bonfire.OpenScience.Publications do
   Gets the most cited publication for a user.
   """
   def get_most_cited_publication(user) do
-    with {:ok, orcid_id} <- OpenScience.get_user_orcid(user),
+    with {:ok, orcid_id} <- ORCID.user_orcid_id(user),
          {:ok, publication} <- Client.fetch_most_cited_publication(orcid_id) do
       {:ok, publication}
     else
@@ -54,7 +54,7 @@ defmodule Bonfire.OpenScience.Publications do
   Gets publication types distribution for a user.
   """
   def get_publication_types(user) do
-    with {:ok, orcid_id} <- OpenScience.get_user_orcid(user),
+    with {:ok, orcid_id} <- ORCID.user_orcid_id(user),
          {:ok, works_by_type} <- Client.fetch_works_by_type(orcid_id) do
       {:ok, works_by_type}
     else

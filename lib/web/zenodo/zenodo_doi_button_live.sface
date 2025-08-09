@@ -13,7 +13,7 @@
 
   <Bonfire.OpenScience.ZenodoMetadataFormLive
     post={@post}
-    current_user={@current_user}
+    participants={@participants}
     id={"zenodo-metadata-form-#{@parent_id}"}
   />
 </Bonfire.UI.Common.OpenModalLive>
