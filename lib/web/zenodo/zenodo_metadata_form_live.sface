@@ -42,7 +42,7 @@
     </label>
 
     <fieldset class="fieldset mb-0 w-full">
-      <legend class="fieldset-legend">{l("Authors/Creators")} *</legend>
+      <legend class="fieldset-legend">{l("Authors / Creators")} *</legend>
 
       <div id="creators-list">
         {#for {creator, index} <- Enum.with_index(@creators)}
@@ -112,17 +112,31 @@
 
     {!-- Description --}
     <fieldset class="fieldset mb-0 w-full">
-      <legend class="fieldset-legend">{l("Description")} *</legend>
+      <legend class="fieldset-legend">{l("Abstract / Description / Main Content")} *</legend>
       <TextArea
         field={:description}
         value={@metadata["description"]}
         rows="4"
         class="textarea w-full"
       />
-      <div class="label">{l("Minimum 10 characters. Limited HTML supported.")}</div>
+      <div class="label">{l("Minimum 10 characters. Limited markdown supported.")}</div>
       {#if Map.has_key?(@errors, :description)}
         <span class="text-error text-sm">{@errors.description}</span>
       {/if}
+    </fieldset>
+
+    {!-- <fieldset :for={description <- @metadata["additional_descriptions"]} class="fieldset mb-0 w-full">
+      <legend class="fieldset-legend">{l("Discussion")} *</legend>
+      <input type="hidden" value={description} name="additional_descriptions[][description]" />
+      <div
+        class="textarea w-full"
+      >{raw description}</div>
+    </fieldset> --}
+
+    <fieldset class="fieldset mb-0 w-full">
+      <legend class="fieldset-legend">{l("Discussion")}</legend>
+      <input type="hidden" value={@metadata["notes"]} name="notes">
+      <div class="textarea w-full">{raw(@metadata["notes"])}</div>
     </fieldset>
 
     {!-- Publication Date --}
@@ -195,11 +209,7 @@
 
     {!-- Submit buttons --}
     <div class="modal-action sticky bottom-0 bg-base-200 border-t border-base-content/10 p-3 -mx-4 z-50">
-      <button
-        type="button"
-        class="btn btn-ghost"
-        onclick="document.getElementById('zenodo-doi-modal').close()"
-      >
+      <button type="button" class="btn btn-ghost" :click="close">
         {l("Cancel")}
       </button>
       <button type="submit" class={"btn btn-primary", loading: @submitting} disabled={@submitting}>

@@ -31,19 +31,43 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
 
     # Extract post title
     title =
-      e(post, :post_content, :name, nil) ||
-        e(post, :post_content, :html_body, "")
-        |> text_only()
-        |> String.slice(0..100)
-        |> String.trim()
+      (e(post, :post_content, :name, nil) || e(post, :post_content, :summary, nil) ||
+         e(post, :post_content, :html_body, "") |> Text.maybe_markdown_to_html())
+      |> Text.text_only()
+      |> Text.sentence_truncate(100)
 
     # Extract description
     description =
-      e(post, :post_content, :summary, nil) ||
-        e(post, :post_content, :html_body, "")
-        |> text_only()
-        |> String.slice(0..500)
-        |> String.trim()
+      """
+      #{if e(post, :post_content, :name, nil), do: e(post, :post_content, :summary, nil)}
+      #{e(post, :post_content, :html_body, nil)}
+      """
+      # |> Text.text_only()
+      |> String.trim()
+      |> Text.sentence_truncate(50_000)
+
+    # e(post, :replied, :thread_id, nil) || 
+    thread_id =
+      id(post)
+
+    limit = 5_000
+
+    opts = [
+      current_user: current_user,
+      preload: [:with_post_content],
+      limit: limit,
+      max_depth: limit
+      # sort_by: sort_by
+    ]
+
+    replies =
+      case Bonfire.Social.Threads.list_replies(thread_id, opts) |> debug("repliess") do
+        %{edges: replies} when replies != [] ->
+          replies
+
+        _ ->
+          []
+      end
 
     # Get publication date
     publication_date = e(post, :inserted_at, nil) || Date.utc_today()
@@ -78,6 +102,8 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
       "upload_type" => "publication",
       "title" => title,
       "description" => description,
+      # "additional_descriptions" => comments_as_descriptions(post, current_user: current_user),
+      "notes" => comments_as_descriptions(replies, opts),
       "publication_date" => formatted_date,
       "access_right" => "open",
       "license" => "CC-BY-4.0",
@@ -85,8 +111,71 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     }
 
     socket
-    |> assign(metadata: metadata)
-    |> assign(creators: creators)
+    |> assign(
+      metadata: metadata,
+      replies: replies,
+      creators: creators
+    )
+  end
+
+  defp comments_as_descriptions(replies, opts) do
+    replies
+    |> Bonfire.Social.Threads.prepare_replies_tree(opts)
+    |> debug("repliesstreee")
+    # |> Enum.map(fn {reply, child_replies} ->
+    # render_recursive_descriptions(reply, child_replies)
+    # end)
+    |> recursive_descriptions()
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join("\n")
+  end
+
+  defp recursive_descriptions(replies) do
+    replies
+    |> Enum.map(fn {reply, child_replies} ->
+      render_recursive_descriptions(reply, child_replies)
+    end)
+  end
+
+  defp render_recursive_descriptions(reply, child_replies) do
+    fields = [
+      {"<strong>#{e(reply, :activity, :subject, :profile, :name, nil)} (#{e(reply, :activity, :subject, :character, :username, nil)}):</strong>",
+       true},
+      {e(reply, :activity, :object, :post_content, :name, nil), false},
+      {e(reply, :activity, :object, :post_content, :summary, nil)
+       |> Text.maybe_markdown_to_html(), false},
+      {e(reply, :activity, :object, :post_content, :html_body, nil)
+       |> Text.maybe_markdown_to_html(), false}
+    ]
+
+    content =
+      fields
+      |> Enum.map(fn
+        {text, true} ->
+          "<p>#{text}</p>"
+
+        {text, false} when is_binary(text) ->
+          text = String.trim(text) |> debug("txxxt")
+          if text not in ["", "<p> </p>"], do: "<p>#{text}</p>", else: ""
+
+        _ ->
+          ""
+      end)
+      |> Enum.join("")
+
+    children =
+      child_replies
+      |> Enum.map(fn {child, children} -> render_recursive_descriptions(child, children) end)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.join("")
+
+    """
+    <blockquote class="ml-4 border-l-1">
+    #{content}
+    #{children}
+    </blockquote>
+    """
+    |> Text.sentence_truncate(50_000)
   end
 
   defp thread_participants_as_creators(participants, post, current_user) do
@@ -267,9 +356,9 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     if Enum.empty?(errors) do
       {:noreply,
        socket
-       |> assign(creators: creators)
+       #  |> assign(creators: creators)
        |> assign(submitting: true)
-       |> submit_to_zenodo(metadata)}
+       |> submit_to_zenodo(metadata, creators)}
     else
       {:noreply, assign(socket, errors: errors)}
     end
@@ -336,27 +425,41 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     end
   end
 
-  defp submit_to_zenodo(socket, metadata) do
+  defp submit_to_zenodo(socket, metadata, creators) do
+    current_user = current_user(socket)
+
     # Include creators in the metadata for the API call
     full_metadata =
       metadata
-      |> Map.put("creators", socket.assigns.creators)
-      |> Map.put("include_comments", socket.assigns.include_comments)
+      |> Map.put("creators", creators)
 
-    case Zenodo.create_deposit_for_user(current_user(socket), full_metadata, auto_publish: true) do
+    # |> Map.put("creators", socket.assigns.creators)
+    # |> Map.put("include_comments", socket.assigns.include_comments)
+
+    case Zenodo.publish_deposit_for_user(
+           current_user,
+           full_metadata,
+           [
+             {"comments.json",
+              Bonfire.UI.Me.ExportController.create_json_stream(current_user, "thread",
+                replies: socket.assigns.replies || []
+              )}
+           ],
+           auto_publish: true
+         ) do
       {:ok, %{published: published_record, deposit: deposit}} when published_record != false ->
         doi = e(deposit, "metadata", "prereserve_doi", "doi", nil)
 
         socket
         |> assign(submitting: false)
-        |> assign_flash(:info, "Draft created with DOI: #{doi}")
+        |> assign_flash(:info, "Successfully published DOI: #{doi}")
 
       {:ok, %{deposit: deposit}} ->
         doi = e(deposit, "metadata", "prereserve_doi", "doi", nil)
 
         socket
         |> assign(submitting: false)
-        |> assign_flash(:info, "Successfully published! DOI: #{doi}")
+        |> assign_flash(:info, "Draft created for DOI: #{doi}")
 
       {:error, reason} ->
         error_msg =

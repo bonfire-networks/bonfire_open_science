@@ -71,13 +71,13 @@ defmodule Bonfire.OpenScience do
   """
   def maybe_fetch_orcid_work_metadata(url, opts \\ []) do
     with {:ok, %{} = orcid_metadata} <-
-           Bonfire.OpenScience.ORCID.fetch_orcid_work_metadata(url) |> flood("from orcid") do
+           Bonfire.OpenScience.ORCID.fetch_orcid_work_metadata(url) |> debug("from orcid") do
       case e(orcid_metadata, "canonical_url", nil) do
         canonical_url when is_binary(canonical_url) and canonical_url != url ->
           with {:ok, %{} = source_metadata} <-
                  (Bonfire.OpenScience.APIs.maybe_fetch(url, opts) ||
                     Unfurl.unfurl(canonical_url, opts))
-                 |> flood("from DOI") do
+                 |> debug("from DOI") do
             {:ok, Map.merge(orcid_metadata, source_metadata)}
           else
             e ->

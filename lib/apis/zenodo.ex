@@ -10,7 +10,7 @@ defmodule Bonfire.OpenScience.Zenodo do
   @sandbox_url "https://sandbox.zenodo.org/api"
 
   @doc """
-  Creates a Zenodo deposit for a user using their stored Zenodo access token.
+  Creates a Zenodo deposit for a user using their stored Zenodo access token, uploads files, and publishes.
 
   ## Parameters
   - user: The user who owns the Zenodo credentials
@@ -20,12 +20,10 @@ defmodule Bonfire.OpenScience.Zenodo do
   ## Returns
   {:ok, deposit} on success, {:error, reason} on failure
   """
-  def create_deposit_for_user(user, metadata, opts \\ []) do
+  def publish_deposit_for_user(user, metadata, files, opts \\ []) do
     with {:ok, access_token} <- get_user_zenodo_token(user),
-         {:ok, deposit} <- create_deposit(metadata, access_token, opts) do
-      deposit_id = e(deposit, "id", nil)
-
-      {:ok, %{deposit: deposit, published: maybe_publish(deposit_id, access_token, opts)}}
+         {:ok, result} <- create_and_upload(metadata, files, access_token, opts) do
+      {:ok, result}
     end
   end
 
@@ -136,18 +134,16 @@ defmodule Bonfire.OpenScience.Zenodo do
 
   ## Parameters
   - bucket_url: The bucket URL from the deposit's links
-  - file_path: Local path to the file to upload
-  - filename: Name to give the file in Zenodo (optional, defaults to basename of file_path)
+  - file_input: Local path to the file, or a stream, or {stream, filename} tuple
   - access_token: Zenodo API access token
+  - filename: Name to give the file in Zenodo (optional, defaults to basename of file_path for paths)
 
   ## Returns
   {:ok, file_info} on success, {:error, reason} on failure
   """
-  def upload_file(bucket_url, file_path, access_token, filename \\ nil) do
-    filename = filename || Path.basename(file_path)
-    upload_url = "#{bucket_url}/#{filename}?access_token=#{access_token}"
-
-    with {:ok, file_data} <- File.read(file_path),
+  def upload_file(bucket_url, file_input, access_token, filename \\ nil) do
+    with {:ok, {final_filename, file_data}} <- prepare_upload_data(file_input, filename),
+         upload_url = "#{bucket_url}/#{final_filename}?access_token=#{access_token}",
          {:ok, %{body: body, status: status}} when status in 200..299 <-
            HTTP.put(upload_url, file_data, [
              {"Content-Type", "application/octet-stream"}
@@ -156,15 +152,13 @@ defmodule Bonfire.OpenScience.Zenodo do
       {:ok, file_info}
     else
       {:error, :enoent} ->
-        {:error, :file_not_found}
+        error(file_input, "File to be uploaded not found")
 
       {:ok, %{status: status, body: body}} ->
-        error("Zenodo file upload error: #{status} - #{body}")
-        {:error, :upload_failed}
+        error(body, "File upload to Zenodo failed: #{status}")
 
       {:error, reason} ->
-        error("File upload failed: #{inspect(reason)}")
-        {:error, :upload_failed}
+        error(reason, "File upload to Zenodo failed")
     end
   end
 
@@ -237,22 +231,48 @@ defmodule Bonfire.OpenScience.Zenodo do
   end
 
   defp upload_files(bucket_url, files, access_token) do
-    results =
-      Enum.map(files, fn
-        {file_path, filename} ->
-          upload_file(bucket_url, file_path, access_token, filename)
+    files
+    |> normalize_file_list()
+    |> Enum.reduce_while({:ok, []}, fn {filename, file_input}, {:ok, acc} ->
+      case upload_file(bucket_url, file_input, access_token, filename) do
+        {:ok, file_info} -> {:cont, {:ok, [file_info | acc]}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+    |> case do
+      {:ok, file_infos} -> {:ok, Enum.reverse(file_infos)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
 
-        file_path when is_binary(file_path) ->
-          upload_file(bucket_url, file_path, access_token)
-      end)
+  defp normalize_file_list(files) do
+    Enum.map(files || [], fn
+      {filename, file_input} -> {filename, file_input}
+      file_input -> {nil, file_input}
+    end)
+  end
 
-    case Enum.split_with(results, &match?({:ok, _}, &1)) do
-      {successes, []} ->
-        file_infos = Enum.map(successes, fn {:ok, info} -> info end)
-        {:ok, file_infos}
+  defp prepare_upload_data(file_input, filename) do
+    cond do
+      is_binary(file_input) ->
+        # Handle file path
+        case File.read(file_input) do
+          {:ok, data} ->
+            final_filename = filename || Path.basename(file_input)
+            {:ok, {final_filename, data}}
 
-      {_successes, errors} ->
-        {:error, {:upload_errors, errors}}
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      Enumerable.impl_for(file_input) ->
+        # Handle stream
+        final_filename = filename || "stream_upload"
+        data = Enum.into(file_input, <<>>)
+        {:ok, {final_filename, data}}
+
+      true ->
+        error(file_input, "Invalid file input")
     end
   end
 end
