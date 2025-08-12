@@ -106,14 +106,14 @@ defmodule Bonfire.OpenScience.Zenodo do
 
     payload = %{"metadata" => metadata}
 
-    with {:ok, json_payload} <- Jason.encode(payload),
-         {:ok, %{body: body, status: status}} when status in 200..299 <-
-           HTTP.post(url, json_payload, [
-             {"Content-Type", "application/json"},
-             {"Accept", "application/json"}
-           ]),
-         {:ok, deposit} <- Jason.decode(body) do
-      {:ok, deposit}
+    with {:ok, %{body: body, status: status}} when status in 200..299 <-
+           Req.post(url,
+             json: payload,
+             headers: [
+               {"Accept", "application/json"}
+             ]
+           ) do
+      {:ok, body}
     else
       {:error, %Jason.EncodeError{}} ->
         error("Failed to encode metadata as JSON")
@@ -145,14 +145,17 @@ defmodule Bonfire.OpenScience.Zenodo do
     with {:ok, {final_filename, file_data}} <- prepare_upload_data(file_input, filename),
          upload_url = "#{bucket_url}/#{final_filename}?access_token=#{access_token}",
          {:ok, %{body: body, status: status}} when status in 200..299 <-
-           HTTP.put(upload_url, file_data, [
-             {"Content-Type", "application/octet-stream"}
-           ]),
-         {:ok, file_info} <- Jason.decode(body) do
-      {:ok, file_info}
+           Req.put(upload_url,
+             body: file_data,
+             headers: [
+               {"Content-Type", "application/octet-stream"}
+             ]
+           ) do
+      {:ok, body}
     else
       {:error, :enoent} ->
         error(file_input, "File to be uploaded not found")
+        {:error, :file_not_found}
 
       {:ok, %{status: status, body: body}} ->
         error(body, "File upload to Zenodo failed: #{status}")
@@ -177,12 +180,14 @@ defmodule Bonfire.OpenScience.Zenodo do
     url = build_url("/deposit/depositions/#{deposit_id}/actions/publish", access_token, opts)
 
     with {:ok, %{body: body, status: status}} when status in 200..299 <-
-           HTTP.post(url, "", [
-             {"Content-Type", "application/json"},
-             {"Accept", "application/json"}
-           ]),
-         {:ok, published_record} <- Jason.decode(body) do
-      {:ok, published_record}
+           Req.post(url,
+             body: "",
+             headers: [
+               {"Content-Type", "application/json"},
+               {"Accept", "application/json"}
+             ]
+           ) do
+      {:ok, body}
     else
       {:ok, %{status: status, body: body}} ->
         error("Zenodo publish error: #{status} - #{body}")
@@ -209,9 +214,8 @@ defmodule Bonfire.OpenScience.Zenodo do
     url = build_url("/deposit/depositions/#{deposit_id}", access_token, opts)
 
     with {:ok, %{body: body, status: status}} when status in 200..299 <-
-           HTTP.get(url, [{"Accept", "application/json"}]),
-         {:ok, deposit} <- Jason.decode(body) do
-      {:ok, deposit}
+           Req.get(url, headers: [{"Accept", "application/json"}]) do
+      {:ok, body}
     else
       {:ok, %{status: status, body: body}} ->
         error("Zenodo API error: #{status} - #{body}")
@@ -255,21 +259,20 @@ defmodule Bonfire.OpenScience.Zenodo do
   defp prepare_upload_data(file_input, filename) do
     cond do
       is_binary(file_input) ->
-        # Handle file path
-        case File.read(file_input) do
-          {:ok, data} ->
-            final_filename = filename || Path.basename(file_input)
-            {:ok, {final_filename, data}}
-
-          {:error, reason} ->
-            {:error, reason}
+        # Handle file path - pass directly to Req
+        if File.exists?(file_input) do
+          final_filename = filename || Path.basename(file_input)
+          # Req can handle file paths directly for streaming
+          {:ok, {final_filename, file_input}}
+        else
+          {:error, :enoent}
         end
 
       Enumerable.impl_for(file_input) ->
-        # Handle stream
+        # Handle stream - convert to binary - FIXME: we should be able to stream this to Req directly
         final_filename = filename || "stream_upload"
-        data = Enum.into(file_input, <<>>)
-        {:ok, {final_filename, data}}
+        stream_content = file_input |> Enum.join()
+        {:ok, {final_filename, stream_content}}
 
       true ->
         error(file_input, "Invalid file input")

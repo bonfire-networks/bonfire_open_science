@@ -7,7 +7,7 @@
   <:open_btn>
     <div class="text-left">
       <!-- <Iconify.iconify icon="carbon:cloud-upload" class="w-4 h-4" /> -->
-      <span>{l("Create DOI")}</span>
+      <span>{l("Create DOI and publish on Zenodo")}</span>
     </div>
   </:open_btn>
 

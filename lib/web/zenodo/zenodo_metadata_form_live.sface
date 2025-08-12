@@ -119,7 +119,7 @@
         rows="4"
         class="textarea w-full"
       />
-      <div class="label">{l("Minimum 10 characters. Limited markdown supported.")}</div>
+      <div class="label">{l("Minimum 10 characters. Markdown formatting supported.")}</div>
       {#if Map.has_key?(@errors, :description)}
         <span class="text-error text-sm">{@errors.description}</span>
       {/if}

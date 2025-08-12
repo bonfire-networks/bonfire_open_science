@@ -53,8 +53,9 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     limit = 5_000
 
     opts = [
-      current_user: current_user,
-      preload: [:with_post_content],
+      #  NOTE: we only want to include public ones
+      current_user: nil,
+      preload: [:with_subject, :with_post_content],
       limit: limit,
       max_depth: limit
       # sort_by: sort_by
@@ -113,7 +114,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     socket
     |> assign(
       metadata: metadata,
-      replies: replies,
+      reply_ids: replies |> Enum.map(&e(&1, :activity, :id, nil)),
       creators: creators
     )
   end
@@ -432,6 +433,9 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     full_metadata =
       metadata
       |> Map.put("creators", creators)
+      |> Map.update("description", nil, fn description ->
+        Text.maybe_markdown_to_html(description)
+      end)
 
     # |> Map.put("creators", socket.assigns.creators)
     # |> Map.put("include_comments", socket.assigns.include_comments)
@@ -440,9 +444,12 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
            current_user,
            full_metadata,
            [
-             {"comments.json",
-              Bonfire.UI.Me.ExportController.create_json_stream(current_user, "thread",
-                replies: socket.assigns.replies || []
+             # Attach the post content as a file
+             {"primary_content.json", prepare_record_json(socket.assigns.post)},
+             # Maybe attach the comments too
+             {"replies.json",
+              Bonfire.UI.Me.ExportController.create_json_stream(nil, "thread",
+                replies: socket.assigns.reply_ids || []
               )}
            ],
            auto_publish: true
@@ -484,6 +491,19 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
         |> assign(submitting: false)
         |> assign_error(error_msg)
     end
+  end
+
+  defp prepare_record_json(post) do
+    with {:ok, json} <- Bonfire.UI.Me.ExportController.object_json(post) do
+      json
+      |> List.wrap()
+      |> Stream.into([])
+    else
+      _ ->
+        []
+    end
+
+    # |> debug("jsssson")
   end
 
   def upload_type_options do
