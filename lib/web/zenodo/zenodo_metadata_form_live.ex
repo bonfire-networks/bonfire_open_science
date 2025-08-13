@@ -457,7 +457,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
              ],
              auto_publish: true
            )
-           |> flood("published?"),
+           |> debug("published?"),
          doi when is_binary(doi) <-
            e(result, :published, "doi_url", nil) ||
              if(doi = e(deposit, "metadata", "prereserve_doi", "doi", nil),
@@ -473,7 +473,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
              },
              object
            )
-           |> flood("attached?") do
+           |> debug("attached?") do
       cond do
         e(result, :published, nil) ->
           socket
