@@ -440,56 +440,70 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     # |> Map.put("creators", socket.assigns.creators)
     # |> Map.put("include_comments", socket.assigns.include_comments)
 
-    case Zenodo.publish_deposit_for_user(
-           current_user,
-           full_metadata,
-           [
-             # Attach the post content as a file
-             {"primary_content.json", prepare_record_json(socket.assigns.post)},
-             # Maybe attach the comments too
-             {"replies.json",
-              Bonfire.UI.Me.ExportController.create_json_stream(nil, "thread",
-                replies: socket.assigns.reply_ids || []
-              )}
-           ],
-           auto_publish: true
-         ) do
-      {:ok, %{published: published_record, deposit: deposit}} when published_record != false ->
-        doi = e(deposit, "metadata", "prereserve_doi", "doi", nil)
+    object = socket.assigns.post
+
+    with {:ok, %{deposit: deposit} = result} <-
+           Zenodo.publish_deposit_for_user(
+             current_user,
+             full_metadata,
+             [
+               # Attach the post content as a file
+               {"primary_content.json", prepare_record_json(object)},
+               # Maybe attach the comments too
+               {"replies.json",
+                Bonfire.UI.Me.ExportController.create_json_stream(nil, "thread",
+                  replies: socket.assigns.reply_ids || []
+                )}
+             ],
+             auto_publish: true
+           )
+           |> flood("published?"),
+         doi when is_binary(doi) <-
+           e(result, :published, "doi_url", nil) ||
+             if(doi = e(deposit, "metadata", "prereserve_doi", "doi", nil),
+               do: "https://doi.org/#{doi}"
+             ),
+         {:ok, _} <-
+           Bonfire.OpenScience.save_as_attached_media(
+             current_user,
+             doi,
+             %{
+               "zenodo" =>
+                 e(result, :published, nil) || Map.put(deposit, "files", e(result, :files, []))
+             },
+             object
+           )
+           |> flood("attached?") do
+      cond do
+        e(result, :published, nil) ->
+          socket
+          |> assign(submitting: false)
+          |> assign_flash(:info, "Successfully published DOI: #{doi}")
+
+        doi = e(deposit, "metadata", "prereserve_doi", "doi", nil) ->
+          doi = "https://doi.org/#{doi}"
+
+          socket
+          |> assign(submitting: false)
+          |> assign_flash(:info, "Draft created with DOI: #{doi}")
+
+        true ->
+          socket
+          |> assign(submitting: false)
+          |> assign_flash(:info, "Draft created")
+      end
+    else
+      {:error, reason} when is_binary(reason) ->
+        socket
+        |> assign(submitting: false)
+        |> assign_error(reason)
+
+      other ->
+        error(other, "Failed to create DOI")
 
         socket
         |> assign(submitting: false)
-        |> assign_flash(:info, "Successfully published DOI: #{doi}")
-
-      {:ok, %{deposit: deposit}} ->
-        doi = e(deposit, "metadata", "prereserve_doi", "doi", nil)
-
-        socket
-        |> assign(submitting: false)
-        |> assign_flash(:info, "Draft created for DOI: #{doi}")
-
-      {:error, reason} ->
-        error_msg =
-          case reason do
-            :no_zenodo_credentials ->
-              "Please connect your Zenodo account first"
-
-            :invalid_zenodo_credentials ->
-              "Invalid Zenodo credentials - please reconnect your account"
-
-            :zenodo_api_error ->
-              "Zenodo API error occurred"
-
-            :request_failed ->
-              "Network error - please try again"
-
-            _ ->
-              "Failed to create DOI: #{inspect(reason)}"
-          end
-
-        socket
-        |> assign(submitting: false)
-        |> assign_error(error_msg)
+        |> assign_error("Failed to create DOI")
     end
   end
 

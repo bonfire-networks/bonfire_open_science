@@ -39,7 +39,7 @@ defmodule Bonfire.OpenScience do
       # |> Keyword.put_new(:update_existing, :force)
       |> Keyword.merge(
         fetch_fn: fn url, opts -> fetch_url_metadata(url, opts) end,
-        id: DatesTimes.generate_ulid_if_past(opts[:date_created]),
+        id: Bonfire.Common.DatesTimes.generate_ulid_if_past(opts[:date_created]),
         post_create_fn: fn current_user, media, opts ->
           Bonfire.Social.Objects.publish(
             current_user,
@@ -51,6 +51,32 @@ defmodule Bonfire.OpenScience do
           )
         end,
         extra: extra_data
+      )
+    )
+  end
+
+  def save_as_attached_media(
+        user,
+        url,
+        meta,
+        object,
+        opts \\ []
+      ) do
+    Bonfire.Files.Acts.URLPreviews.maybe_save(
+      user,
+      url,
+      meta,
+      opts
+      #  to upsert metadata
+      |> Keyword.put_new(:update_existing, true)
+      # to (re)publish the activity
+      # |> Keyword.put_new(:update_existing, :force)
+      |> Keyword.merge(
+        id: Bonfire.Common.DatesTimes.generate_ulid_if_past(opts[:date_created]),
+        post_create_fn: fn current_user, media, opts ->
+          Bonfire.Files.attach_media(current_user, media, object)
+        end
+        # extra: extra_data
       )
     )
   end
