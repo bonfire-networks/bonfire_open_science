@@ -1,8 +1,9 @@
 defmodule Bonfire.OpenScience.Crossref do
+  alias Bonfire.OpenScience.DOI
   alias Unfurl.Fetcher
 
   def fetch_crossref(url) do
-    with true <- OpenScience.is_doi?(url),
+    with true <- DOI.is_doi?(url),
          # TODO: add a custom user agent or optional API key?
          {:ok, body, 200} <-
            Fetcher.fetch("https://api.crossref.org/works/#{URI.encode_www_form(url)}"),
