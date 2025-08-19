@@ -6,6 +6,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
   prop post, :map, required: true
   prop participants, :any, default: nil
   prop include_comments, :boolean, default: true
+  prop api_type, :any, default: nil
 
   data metadata, :map, default: %{}
   data creators, :list, default: []
@@ -27,6 +28,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
 
   defp populate_from_post(socket) do
     post = socket.assigns.post
+    api_type = socket.assigns.api_type
     current_user = current_user(socket)
 
     # Extract post title
@@ -50,19 +52,10 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     thread_id =
       id(post)
 
-    limit = 5_000
-
-    opts = [
-      #  NOTE: we only want to include public ones
-      current_user: nil,
-      preload: [:with_subject, :with_post_content],
-      limit: limit,
-      max_depth: limit
-      # sort_by: sort_by
-    ]
+    replies_opts = replies_opts()
 
     replies =
-      case Bonfire.Social.Threads.list_replies(thread_id, opts) |> debug("repliess") do
+      case Bonfire.Social.Threads.list_replies(thread_id, replies_opts) |> debug("repliess") do
         %{edges: replies} when replies != [] ->
           replies
 
@@ -114,32 +107,113 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     socket
     |> assign(
       metadata: metadata,
-      notes: comments_as_descriptions(replies, opts),
+      replies: if(api_type == :invenio, do: replies),
+      notes: comments_as_note(replies, :html, replies_opts),
+      # additional_descriptions: if(api_type==:invenio, do: comments_as_descriptions(replies, opts)),
       reply_ids: replies |> Enum.map(&e(&1, :activity, :id, nil)),
       creators: creators
     )
   end
 
-  defp comments_as_descriptions(replies, opts) do
+  defp replies_opts(limit \\ 5_000) do
+    [
+      #  NOTE: we only want to include public ones
+      current_user: nil,
+      preload: [:with_subject, :with_post_content],
+      limit: limit,
+      max_depth: limit
+      # sort_by: sort_by
+    ]
+  end
+
+  defp comments_as_note(replies, render_as \\ :html, opts \\ []) do
     replies
     |> Bonfire.Social.Threads.prepare_replies_tree(opts)
     |> debug("repliesstreee")
     # |> Enum.map(fn {reply, child_replies} ->
-    # render_recursive_descriptions(reply, child_replies)
+    # render_recursive_descriptions(reply, child_replies, render_as)
     # end)
-    |> recursive_descriptions()
+    |> recursive_descriptions(render_as)
     |> Enum.reject(&(&1 == ""))
     |> Enum.join("\n")
   end
 
-  defp recursive_descriptions(replies) do
+  defp comments_as_descriptions(replies, render_as \\ :html, opts \\ []) do
+    replies
+    |> Bonfire.Social.Threads.prepare_replies_tree(opts)
+    |> debug("repliesstreee")
+    # |> Enum.map(fn {reply, child_replies} ->
+    # render_recursive_descriptions(reply, child_replies, render_as)
+    # end)
+    |> recursive_descriptions(render_as)
+  end
+
+  defp recursive_descriptions(replies, render_as \\ :html) do
     replies
     |> Enum.map(fn {reply, child_replies} ->
-      render_recursive_descriptions(reply, child_replies)
+      render_recursive_descriptions(reply, child_replies, render_as)
     end)
   end
 
-  defp render_recursive_descriptions(reply, child_replies) do
+  defp render_recursive_descriptions(reply, child_replies, render_as \\ :html, level \\ 0)
+
+  defp render_recursive_descriptions(reply, child_replies, :markdown, level) do
+    author =
+      e(reply, :activity, :subject, :profile, :name, nil) ||
+        e(reply, :activity, :subject, :character, :username, nil) ||
+        "Unknown"
+
+    fields = [
+      {"**#{author}:**", true},
+      {e(reply, :activity, :object, :post_content, :name, nil), false},
+      {e(reply, :activity, :object, :post_content, :summary, nil), false},
+      {e(reply, :activity, :object, :post_content, :html_body, nil), false}
+    ]
+
+    content =
+      fields
+      |> Enum.map(fn
+        {text, true} when is_binary(text) and text != "" ->
+          "#{text}\n"
+
+        {text, false} when is_binary(text) ->
+          text = String.trim(text)
+          if text not in ["", "<p> </p>"], do: "#{text}\n", else: ""
+
+        _ ->
+          ""
+      end)
+      |> Enum.join("")
+      |> String.trim()
+
+    quote_prefix = String.duplicate("> ", level)
+
+    quoted_content =
+      content
+      |> String.split("\n")
+      |> Enum.map(&(quote_prefix <> &1))
+      |> Enum.join("\n")
+
+    children =
+      child_replies
+      |> Enum.map(fn {child, children} ->
+        render_recursive_descriptions(child, children, :markdown, level + 1)
+      end)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.join("\n")
+
+    result =
+      if children != "" do
+        quoted_content <> "\n" <> children
+      else
+        quoted_content
+      end
+
+    result
+    |> Text.sentence_truncate(50_000)
+  end
+
+  defp render_recursive_descriptions(reply, child_replies, _html, _) do
     fields = [
       {"<strong>#{e(reply, :activity, :subject, :profile, :name, nil)} (#{e(reply, :activity, :subject, :character, :username, nil)}):</strong>",
        true},
@@ -429,29 +503,50 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
 
   defp submit_to_zenodo(socket, metadata, creators) do
     current_user = current_user(socket)
+    api_type = socket.assigns.api_type
+    include_comments = socket.assigns.include_comments
 
     # Include creators in the metadata for the API call
-    full_metadata =
+    metadata =
       metadata
-      |> Map.put("creators", creators)
+      # |> Map.put("creators", creators)
       |> Map.update("description", nil, fn description ->
-        Text.maybe_markdown_to_html(description)
+        if api_type == :invenio do
+          # NOTE: kcworks is not rendering html, so just send markdown for now
+          description
+
+          #  "#{description}\n\n#{comments_as_note(e(socket.assigns, :replies, nil), :markdown, replies_opts())}"
+          #  "#{Text.maybe_markdown_to_html(description)}\n\n#{e(socket.assigns, :notes, nil)}"
+        else
+          Text.maybe_markdown_to_html(description)
+        end
       end)
+      |> Map.put(
+        "notes",
+        if(api_type == :zenodo, do: e(socket.assigns, :notes, nil))
+      )
 
     # |> Map.put("creators", socket.assigns.creators)
-    # |> Map.put("include_comments", socket.assigns.include_comments)
+    # |> Map.put("include_comments", include_comments)
 
     object = socket.assigns.post
 
     with {:ok, %{deposit: deposit} = result} <-
            Zenodo.publish_deposit_for_user(
              current_user,
-             full_metadata,
+             creators,
+             metadata,
              [
                # Attach the post content as a file
+               if(include_comments && api_type == :invenio,
+                 do:
+                   {"discussion.md",
+                    comments_as_note(e(socket.assigns, :replies, nil), :markdown, replies_opts())
+                    |> stream_into()}
+               ),
                {"primary_content.json", prepare_record_json(object)},
                # Maybe attach the comments too
-               if(socket.assigns.include_comments,
+               if(include_comments,
                  do:
                    {"replies.json",
                     Bonfire.UI.Me.ExportController.create_json_stream(nil, "thread",
@@ -464,7 +559,11 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
            |> debug("published?"),
          doi when is_binary(doi) <-
            e(result, :published, "doi_url", nil) ||
-             if(doi = e(deposit, "metadata", "prereserve_doi", "doi", nil),
+             if(
+               doi =
+                 e(result, :published, "pids", "doi", "identifier", nil) ||
+                   e(deposit, "pids", "doi", "identifier", nil) ||
+                   e(deposit, "metadata", "prereserve_doi", "doi", nil),
                do: "https://doi.org/#{doi}"
              ),
          {:ok, _} <-
@@ -520,14 +619,19 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
   defp prepare_record_json(post) do
     with {:ok, json} <- Bonfire.UI.Me.ExportController.object_json(post) do
       json
-      |> List.wrap()
-      |> Stream.into([])
+      |> stream_into()
     else
       _ ->
         []
     end
 
     # |> debug("jsssson")
+  end
+
+  defp stream_into(data) do
+    data
+    |> List.wrap()
+    |> Stream.into([])
   end
 
   def upload_type_options do

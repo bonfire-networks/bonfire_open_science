@@ -8,7 +8,6 @@ defmodule Bonfire.OpenScience.Zenodo do
 
   @base_url "https://zenodo.org/api"
   @sandbox_url "https://sandbox.zenodo.org/api"
-  @kc_works_url "https://works.hcommons.org/api"
 
   @doc """
   Creates a Zenodo deposit for a user using their stored Zenodo access token, uploads files, and publishes.
@@ -21,9 +20,10 @@ defmodule Bonfire.OpenScience.Zenodo do
   ## Returns
   {:ok, deposit} on success, {:error, reason} on failure
   """
-  def publish_deposit_for_user(user, metadata, files, opts \\ []) do
-    with {:ok, access_token, base_url} <- get_user_zenodo_token(user),
-         {:ok, result} <- create_and_upload(metadata, files, {access_token, base_url}, opts) do
+  def publish_deposit_for_user(user, creators, metadata, files, opts \\ []) do
+    with {:ok, access_token, api_type} <- get_user_zenodo_token(user),
+         {:ok, result} <-
+           create_and_upload(creators, metadata, files, access_token, api_type, opts) do
       {:ok, result}
     end
   end
@@ -40,8 +40,8 @@ defmodule Bonfire.OpenScience.Zenodo do
   defp get_user_zenodo_token(user) do
     case OpenScience.user_alias_by_type(user, "zenodo") do
       nil ->
-        if token = System.get_env("KCWORKS_PERSONAL_TOKEN") do
-          {:ok, token, @kc_works_url}
+        if token = System.get_env("INVENIO_RDM_PERSONAL_TOKEN") do
+          {:ok, token, :invenio}
         else
           {:error, :no_zenodo_credentials}
         end
@@ -50,10 +50,16 @@ defmodule Bonfire.OpenScience.Zenodo do
         access_token = e(zenodo_media, :metadata, "zenodo", "access_token", nil)
 
         if access_token && access_token != "" do
-          {:ok, access_token, nil}
+          {:ok, access_token, :zenodo}
         else
           {:error, :invalid_zenodo_credentials}
         end
+    end
+  end
+
+  def get_user_api_type(user) do
+    with {:ok, _access_token, api_type} <- get_user_zenodo_token(user) do
+      api_type
     end
   end
 
@@ -69,19 +75,20 @@ defmodule Bonfire.OpenScience.Zenodo do
   ## Returns
   {:ok, %{deposit: deposit, files: file_infos, published: published_record}} on success
   """
-  def create_and_upload(metadata, files, access_token, opts \\ []) do
-    with {:ok, deposit} <- create_deposit(metadata, access_token, opts),
-         bucket_url = e(deposit, "links", "bucket", nil),
-         {:ok, file_infos} <- upload_files(bucket_url, files, access_token),
+  def create_and_upload(creators, metadata, files, access_token, api_type \\ :zenodo, opts \\ []) do
+    with {:ok, deposit} <- create_deposit(creators, metadata, access_token, api_type, opts),
          deposit_id = e(deposit, "id", nil),
+         bucket_url = e(deposit, "links", "bucket", nil),
+         {:ok, file_infos} <-
+           upload_files(bucket_url || deposit_id, files, access_token, api_type, opts),
          result = %{deposit: deposit, files: file_infos} do
-      {:ok, Map.put(result, :published, maybe_publish(deposit_id, access_token, opts))}
+      {:ok, Map.put(result, :published, maybe_publish(deposit_id, access_token, api_type, opts))}
     end
   end
 
-  def maybe_publish(deposit_id, access_token, opts \\ []) do
+  def maybe_publish(deposit_id, access_token, api_type \\ :zenodo, opts \\ []) do
     if Keyword.get(opts, :auto_publish, true) do
-      case publish_deposit(deposit_id, access_token, opts) do
+      case publish_deposit(deposit_id, access_token, api_type, opts) do
         {:ok, published_record} ->
           published_record
 
@@ -105,32 +112,93 @@ defmodule Bonfire.OpenScience.Zenodo do
   ## Returns
   {:ok, deposit} on success, {:error, reason} on failure
   """
-  def create_deposit(metadata, access_token, opts \\ []) do
-    url = build_url("/deposit/depositions", access_token, opts)
+  def create_deposit(creators, metadata, access_token, api_type \\ :zenodo, opts \\ []) do
+    url = build_url(:deposit, access_token, api_type, opts)
     debug(url, "Zenodo API URL")
 
-    payload = %{"metadata" => metadata}
+    payload =
+      if api_type == :invenio do
+        # massage data for the slightly more strict API
+        %{
+          "metadata" =>
+            metadata
+            |> Map.put_new("resource_type", %{"id" => "dataset"})
+            |> Map.put_new("publisher", "Open Science Network")
+            |> Map.put(
+              "creators",
+              creators
+              |> Enum.map(fn creator ->
+                person_or_org = %{
+                  "given_name" => creator["given_name"],
+                  "family_name" => creator["family_name"] || creator["name"],
+                  "type" => "personal",
+                  "name" =>
+                    creator["name"] || "#{creator["given_name"]} #{creator["family_name"]}"
+                }
+
+                person_or_org =
+                  case creator["orcid"] do
+                    orcid when is_binary(orcid) and orcid != "" ->
+                      Map.put(person_or_org, "identifiers", [
+                        %{"identifier" => orcid, "scheme" => "orcid"}
+                      ])
+
+                    _ ->
+                      person_or_org
+                  end
+
+                affiliations =
+                  case creator["affiliations"] || creator["affiliation"] do
+                    affs when is_list(affs) ->
+                      affs
+                      |> Enum.map(fn
+                        a when is_map(a) -> a["name"]
+                        a -> a
+                      end)
+                      |> Enum.filter(&(&1 && &1 != ""))
+                      |> Enum.map(&%{"name" => &1})
+
+                    %{"name" => name} = aff when is_binary(name) and name != "" ->
+                      [aff]
+
+                    aff when is_binary(aff) and aff != "" ->
+                      [%{"name" => aff}]
+
+                    _ ->
+                      []
+                  end
+
+                if affiliations != [] do
+                  %{"person_or_org" => person_or_org, "affiliations" => affiliations}
+                else
+                  %{"person_or_org" => person_or_org}
+                end
+              end)
+            )
+        }
+      else
+        # zenodo
+        %{"metadata" => metadata |> Map.put("creators", creators)}
+      end
 
     with {:ok, %{body: body, status: status}} when status in 200..299 <-
            Req.post(url,
              json: payload,
              headers: [
-               {"Accept", "application/json"}
+               {"Accept", "application/json"},
+               {"Authorization", "Bearer #{access_token}"}
              ]
            ) do
       {:ok, body}
     else
-      {:error, %Jason.EncodeError{}} ->
-        error("Failed to encode metadata as JSON")
-        {:error, :invalid_metadata}
+      {:error, %Jason.EncodeError{} = e} ->
+        error(e, "Failed to encode metadata as JSON")
 
       {:ok, %{status: status, body: body}} ->
         error(body, "Zenodo API error: #{status}")
-        {:error, :zenodo_api_error}
 
       {:error, reason} ->
         error(reason, "HTTP request failed")
-        {:error, :request_failed}
     end
   end
 
@@ -146,27 +214,93 @@ defmodule Bonfire.OpenScience.Zenodo do
   ## Returns
   {:ok, file_info} on success, {:error, reason} on failure
   """
-  def upload_file(bucket_url, file_input, access_token, filename \\ nil) do
-    with {:ok, {final_filename, file_data}} <- prepare_upload_data(file_input, filename),
-         upload_url = "#{bucket_url}/#{final_filename}?access_token=#{access_token}",
-         {:ok, %{body: body, status: status}} when status in 200..299 <-
-           Req.put(upload_url,
-             body: file_data,
-             headers: [
-               {"Content-Type", "application/octet-stream"}
-             ]
-           ) do
-      {:ok, body}
+  def upload_file(
+        bucket_url_or_record_id,
+        file_input,
+        access_token,
+        api_type \\ :zenodo,
+        filename \\ nil,
+        opts \\ []
+      ) do
+    with {:ok, {final_filename, file_data}} <- prepare_upload_data(file_input, filename) do
+      case api_type do
+        :zenodo ->
+          upload_url =
+            build_url(:upload_file, access_token, :zenodo, %{
+              bucket_url: bucket_url_or_record_id,
+              filename: final_filename
+            })
+
+          Req.put(upload_url,
+            body: file_data,
+            headers: [
+              {"Authorization", "Bearer #{access_token}"},
+              {"Content-Type", "application/octet-stream"}
+            ]
+          )
+          |> case do
+            {:ok, %{body: body, status: status}} when status in 200..299 ->
+              {:ok, body}
+
+            {:ok, %{status: status, body: body}} ->
+              error(body, "File upload to Zenodo failed: #{status}")
+
+            {:error, reason} ->
+              error(reason, "File upload to Zenodo failed")
+          end
+
+        :invenio ->
+          # Step 1: Initialize file
+          record_id = bucket_url_or_record_id
+          init_url = build_url(:upload_file_init, access_token, :invenio, %{id: record_id})
+
+          with {:ok, %{status: 201}} <-
+                 Req.post(init_url,
+                   json: [%{key: final_filename}],
+                   headers: [{"Authorization", "Bearer #{access_token}"}]
+                 ),
+               # Step 2: Upload content
+               content_url =
+                 build_url(:upload_file_content, access_token, :invenio, %{
+                   id: record_id,
+                   filename: final_filename
+                 }),
+               {:ok, %{status: 200}} <-
+                 Req.put(content_url,
+                   body: file_data,
+                   headers: [
+                     {"Authorization", "Bearer #{access_token}"},
+                     {"Content-Type", "application/octet-stream"}
+                   ]
+                 ),
+               # Step 3: Commit file
+               commit_url =
+                 build_url(:upload_file_commit, access_token, :invenio, %{
+                   id: record_id,
+                   filename: final_filename
+                 }),
+               {:ok, %{body: body, status: 200}} <-
+                 Req.post(commit_url,
+                   headers: [{"Authorization", "Bearer #{access_token}"}]
+                 ) do
+            {:ok, body}
+          else
+            {:error, :enoent} ->
+              error(file_input, "File to be uploaded not found")
+
+            {:ok, %{status: status, body: body}} ->
+              error(body, "File upload to Invenio failed: #{status}")
+
+            {:error, reason} ->
+              error(reason, "File upload to Invenio failed")
+          end
+      end
     else
       {:error, :enoent} ->
         error(file_input, "File to be uploaded not found")
-        {:error, :file_not_found}
-
-      {:ok, %{status: status, body: body}} ->
-        error(body, "File upload to Zenodo failed: #{status}")
 
       {:error, reason} ->
-        error(reason, "File upload to Zenodo failed")
+        error(reason, "File upload failed")
     end
   end
 
@@ -181,26 +315,25 @@ defmodule Bonfire.OpenScience.Zenodo do
   ## Returns
   {:ok, published_record} on success, {:error, reason} on failure
   """
-  def publish_deposit(deposit_id, access_token, opts \\ []) do
-    url = build_url("/deposit/depositions/#{deposit_id}/actions/publish", access_token, opts)
+  def publish_deposit(deposit_id, access_token, api_type, opts \\ []) do
+    url = build_url(:publish, access_token, api_type, %{id: deposit_id})
 
     with {:ok, %{body: body, status: status}} when status in 200..299 <-
            Req.post(url,
              body: "",
              headers: [
                {"Content-Type", "application/json"},
-               {"Accept", "application/json"}
+               {"Accept", "application/json"},
+               {"Authorization", "Bearer #{access_token}"}
              ]
            ) do
       {:ok, body}
     else
       {:ok, %{status: status, body: body}} ->
         error(body, "Zenodo publish error: #{status}")
-        {:error, :publish_failed}
 
       {:error, reason} ->
         error(reason, "Publish request failed")
-        {:error, :request_failed}
     end
   end
 
@@ -215,45 +348,80 @@ defmodule Bonfire.OpenScience.Zenodo do
   ## Returns
   {:ok, deposit} on success, {:error, reason} on failure
   """
-  def get_deposit(deposit_id, access_token, opts \\ []) do
-    url = build_url("/deposit/depositions/#{deposit_id}", access_token, opts)
+  def get_deposit(deposit_id, access_token, api_type \\ :zenodo, opts \\ []) do
+    url = build_url(:deposit, access_token, api_type)
 
     with {:ok, %{body: body, status: status}} when status in 200..299 <-
-           Req.get(url, headers: [{"Accept", "application/json"}]) do
+           Req.get("#{url}/#{deposit_id}",
+             headers: [
+               {"Accept", "application/json"},
+               {"Authorization", "Bearer #{access_token}"}
+             ]
+           ) do
       {:ok, body}
     else
       {:ok, %{status: status, body: body}} ->
         error(body, "Zenodo API error: #{status}")
-        {:error, :zenodo_api_error}
 
       {:error, reason} ->
         error(reason, "HTTP request failed")
-        {:error, :request_failed}
     end
   end
 
   # Private helper functions
 
-  defp build_url(path, access_token, opts \\ [])
+  defp build_url(path_type, access_token, api_type, params \\ %{}) do
+    case {api_type, path_type} do
+      {:zenodo, :deposit} ->
+        "#{zenodo_base_url()}/deposit/depositions"
 
-  defp build_url(path, {access_token, base_url}, opts) do
-    if is_binary(base_url) do
-      "#{base_url}#{path}?access_token=#{access_token}"
-    else
-      build_url(path, access_token, opts)
+      {:zenodo, :upload_file} ->
+        "#{params[:bucket_url]}/#{params[:filename]}"
+
+      {:zenodo, :publish} ->
+        "#{zenodo_base_url()}/deposit/depositions/#{params[:id]}/actions/publish"
+
+      {:invenio, :deposit} ->
+        "#{invenio_base_url()}/records"
+
+      {:invenio, :upload_file_init} ->
+        "#{invenio_base_url()}/records/#{params[:id]}/draft/files"
+
+      {:invenio, :upload_file_content} ->
+        "#{invenio_base_url()}/records/#{params[:id]}/draft/files/#{params[:filename]}/content"
+
+      {:invenio, :upload_file_commit} ->
+        "#{invenio_base_url()}/records/#{params[:id]}/draft/files/#{params[:filename]}/commit"
+
+      {:invenio, :publish} ->
+        "#{invenio_base_url()}/records/#{params[:id]}/draft/actions/publish"
+
+      _ ->
+        raise ArgumentError,
+              "Unknown API or path type: #{inspect(api_type)}, #{inspect(path_type)}"
     end
   end
 
-  defp build_url(path, access_token, opts) do
-    base_url = if System.get_env("ZENODO_ENV") == "sandbox", do: @sandbox_url, else: @base_url
-    build_url(path, {access_token, base_url}, opts)
+  def zenodo_base_url do
+    if System.get_env("ZENODO_ENV") == "sandbox", do: @zenodo_sandbox_url, else: @zenodo_base_url
   end
 
-  defp upload_files(bucket_url, files, access_token) do
+  def invenio_base_url do
+    System.get_env("INVENIO_RDM_API_URL")
+  end
+
+  defp upload_files(bucket_url_or_record_id, files, access_token, api_type, opts \\ []) do
     files
     |> normalize_file_list()
     |> Enum.reduce_while({:ok, []}, fn {filename, file_input}, {:ok, acc} ->
-      case upload_file(bucket_url, file_input, access_token, filename) do
+      case upload_file(
+             bucket_url_or_record_id,
+             file_input,
+             access_token,
+             api_type,
+             filename,
+             opts
+           ) do
         {:ok, file_info} -> {:cont, {:ok, [file_info | acc]}}
         {:error, reason} -> {:halt, {:error, reason}}
       end

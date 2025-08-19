@@ -1,19 +1,24 @@
-<Bonfire.UI.Common.OpenModalLive
-  id={"zenodo-doi-modal-#{@parent_id}"}
-  title_text={l("Create DOI with Zenodo")}
-  open_btn_text={l("Create DOI")}
-  modal_class="zenodo-modal"
->
-  <:open_btn>
-    <div class="text-left">
-      <!-- <Iconify.iconify icon="carbon:cloud-upload" class="w-4 h-4" /> -->
-      <span>{l("Create DOI and publish on Zenodo")}</span>
-    </div>
-  </:open_btn>
+{#case Bonfire.OpenScience.Zenodo.get_user_api_type(current_user(@__context__))}
+  {#match nil}
+  {#match api_type}
+    <Bonfire.UI.Common.OpenModalLive
+      id={"zenodo-doi-modal-#{@parent_id}"}
+      title_text={l("Create DOI with %{api_type}", api_type: api_type)}
+      open_btn_text={l("Create DOI with %{api_type}", api_type: api_type)}
+      modal_class="zenodo-modal"
+    >
+      <:open_btn>
+        <div class="text-left">
+          <!-- <Iconify.iconify icon="carbon:cloud-upload" class="w-4 h-4" /> -->
+          <span>{l("Create DOI and publish on %{api_type}", api_type: api_type)}</span>
+        </div>
+      </:open_btn>
 
-  <Bonfire.OpenScience.ZenodoMetadataFormLive
-    post={@post}
-    participants={@participants}
-    id={"zenodo-metadata-form-#{@parent_id}"}
-  />
-</Bonfire.UI.Common.OpenModalLive>
+      <Bonfire.OpenScience.ZenodoMetadataFormLive
+        api_type={api_type}
+        post={@post}
+        participants={@participants}
+        id={"zenodo-metadata-form-#{@parent_id}"}
+      />
+    </Bonfire.UI.Common.OpenModalLive>
+{/case}

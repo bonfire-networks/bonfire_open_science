@@ -125,18 +125,23 @@
       {/if}
     </fieldset>
 
-    {!-- <fieldset :for={description <- @metadata["additional_descriptions"]} class="fieldset mb-0 w-full">
-      <legend class="fieldset-legend">{l("Discussion")} *</legend>
-      <input type="hidden" value={description} name="additional_descriptions[][description]" />
+    {!-- {#if @include_comments && @additional_descriptions}
+    <fieldset class="fieldset mb-0 w-full">
+      <legend class="fieldset-legend">{l("Discussion")}</legend>
+      {#for {description, index} <- @additional_descriptions |> Enum.with_index()}
+      <!-- <input type="hidden" value={description} name={"metadata[additional_descriptions][][description]"}/>
+      <input type="hidden" value="other" name={"metadata[additional_descriptions][][type][id]"}/> -->
       <div
         class="textarea w-full"
       >{raw description}</div>
-    </fieldset> --}
+      {/for}
+    </fieldset>
+    {/if} --}
 
     {#if @include_comments && @notes}
       <fieldset class="fieldset mb-0 w-full">
         <legend class="fieldset-legend">{l("Discussion")}</legend>
-        <input type="hidden" value={@notes} name="metadata[notes]">
+        <!-- <input type="hidden" value={@notes} name="metadata[notes]"> -->
         <div class="textarea w-full">{raw(@notes)}</div>
       </fieldset>
     {/if}
