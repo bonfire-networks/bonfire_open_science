@@ -251,9 +251,12 @@ defmodule Bonfire.OpenScience.Zenodo do
 
   defp normalize_file_list(files) do
     Enum.map(files || [], fn
+      nil -> nil
+      {filename, nil} -> nil
       {filename, file_input} -> {filename, file_input}
       file_input -> {nil, file_input}
     end)
+    |> Enum.reject(&is_nil/1)
   end
 
   defp prepare_upload_data(file_input, filename) do

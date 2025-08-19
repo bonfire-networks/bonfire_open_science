@@ -104,7 +104,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
       "title" => title,
       "description" => description,
       # "additional_descriptions" => comments_as_descriptions(post, current_user: current_user),
-      "notes" => comments_as_descriptions(replies, opts),
+      # "notes" => comments_as_descriptions(replies, opts),
       "publication_date" => formatted_date,
       "access_right" => "open",
       "license" => "CC-BY-4.0",
@@ -114,6 +114,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     socket
     |> assign(
       metadata: metadata,
+      notes: comments_as_descriptions(replies, opts),
       reply_ids: replies |> Enum.map(&e(&1, :activity, :id, nil)),
       creators: creators
     )
@@ -450,10 +451,13 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
                # Attach the post content as a file
                {"primary_content.json", prepare_record_json(object)},
                # Maybe attach the comments too
-               {"replies.json",
-                Bonfire.UI.Me.ExportController.create_json_stream(nil, "thread",
-                  replies: socket.assigns.reply_ids || []
-                )}
+               if(socket.assigns.include_comments,
+                 do:
+                   {"replies.json",
+                    Bonfire.UI.Me.ExportController.create_json_stream(nil, "thread",
+                      replies: socket.assigns.reply_ids || []
+                    )}
+               )
              ],
              auto_publish: true
            )
@@ -476,6 +480,8 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
            |> debug("attached?") do
       cond do
         e(result, :published, nil) ->
+          Bonfire.UI.Common.OpenModalLive.close()
+
           socket
           |> assign(submitting: false)
           |> assign_flash(:info, "Successfully published DOI: #{doi}")
@@ -483,11 +489,15 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
         doi = e(deposit, "metadata", "prereserve_doi", "doi", nil) ->
           doi = "https://doi.org/#{doi}"
 
+          Bonfire.UI.Common.OpenModalLive.close()
+
           socket
           |> assign(submitting: false)
           |> assign_flash(:info, "Draft created with DOI: #{doi}")
 
         true ->
+          Bonfire.UI.Common.OpenModalLive.close()
+
           socket
           |> assign(submitting: false)
           |> assign_flash(:info, "Draft created")
