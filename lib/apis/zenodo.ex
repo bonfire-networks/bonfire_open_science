@@ -8,6 +8,7 @@ defmodule Bonfire.OpenScience.Zenodo do
 
   @base_url "https://zenodo.org/api"
   @sandbox_url "https://sandbox.zenodo.org/api"
+  @kc_works_url "https://works.hcommons.org/api"
 
   @doc """
   Creates a Zenodo deposit for a user using their stored Zenodo access token, uploads files, and publishes.
@@ -21,8 +22,8 @@ defmodule Bonfire.OpenScience.Zenodo do
   {:ok, deposit} on success, {:error, reason} on failure
   """
   def publish_deposit_for_user(user, metadata, files, opts \\ []) do
-    with {:ok, access_token} <- get_user_zenodo_token(user),
-         {:ok, result} <- create_and_upload(metadata, files, access_token, opts) do
+    with {:ok, access_token, base_url} <- get_user_zenodo_token(user),
+         {:ok, result} <- create_and_upload(metadata, files, {access_token, base_url}, opts) do
       {:ok, result}
     end
   end
@@ -36,16 +37,20 @@ defmodule Bonfire.OpenScience.Zenodo do
   ## Returns
   {:ok, access_token} on success, {:error, reason} on failure
   """
-  def get_user_zenodo_token(user) do
+  defp get_user_zenodo_token(user) do
     case OpenScience.user_alias_by_type(user, "zenodo") do
       nil ->
-        {:error, :no_zenodo_credentials}
+        if token = System.get_env("KCWORKS_PERSONAL_TOKEN") do
+          {:ok, token, @kc_works_url}
+        else
+          {:error, :no_zenodo_credentials}
+        end
 
       zenodo_media ->
         access_token = e(zenodo_media, :metadata, "zenodo", "access_token", nil)
 
         if access_token && access_token != "" do
-          {:ok, access_token}
+          {:ok, access_token, nil}
         else
           {:error, :invalid_zenodo_credentials}
         end
@@ -120,11 +125,11 @@ defmodule Bonfire.OpenScience.Zenodo do
         {:error, :invalid_metadata}
 
       {:ok, %{status: status, body: body}} ->
-        error("Zenodo API error: #{status} - #{body}")
+        error(body, "Zenodo API error: #{status}")
         {:error, :zenodo_api_error}
 
       {:error, reason} ->
-        error("HTTP request failed: #{inspect(reason)}")
+        error(reason, "HTTP request failed")
         {:error, :request_failed}
     end
   end
@@ -190,11 +195,11 @@ defmodule Bonfire.OpenScience.Zenodo do
       {:ok, body}
     else
       {:ok, %{status: status, body: body}} ->
-        error("Zenodo publish error: #{status} - #{body}")
+        error(body, "Zenodo publish error: #{status}")
         {:error, :publish_failed}
 
       {:error, reason} ->
-        error("Publish request failed: #{inspect(reason)}")
+        error(reason, "Publish request failed")
         {:error, :request_failed}
     end
   end
@@ -218,20 +223,30 @@ defmodule Bonfire.OpenScience.Zenodo do
       {:ok, body}
     else
       {:ok, %{status: status, body: body}} ->
-        error("Zenodo API error: #{status} - #{body}")
+        error(body, "Zenodo API error: #{status}")
         {:error, :zenodo_api_error}
 
       {:error, reason} ->
-        error("HTTP request failed: #{inspect(reason)}")
+        error(reason, "HTTP request failed")
         {:error, :request_failed}
     end
   end
 
   # Private helper functions
 
-  defp build_url(path, access_token, _opts \\ []) do
-    base = if System.get_env("ZENODO_ENV") == "sandbox", do: @sandbox_url, else: @base_url
-    "#{base}#{path}?access_token=#{access_token}"
+  defp build_url(path, access_token, opts \\ [])
+
+  defp build_url(path, {access_token, base_url}, opts) do
+    if is_binary(base_url) do
+      "#{base_url}#{path}?access_token=#{access_token}"
+    else
+      build_url(path, access_token, opts)
+    end
+  end
+
+  defp build_url(path, access_token, opts) do
+    base_url = if System.get_env("ZENODO_ENV") == "sandbox", do: @sandbox_url, else: @base_url
+    build_url(path, {access_token, base_url}, opts)
   end
 
   defp upload_files(bucket_url, files, access_token) do
