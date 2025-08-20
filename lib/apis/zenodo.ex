@@ -60,6 +60,9 @@ defmodule Bonfire.OpenScience.Zenodo do
   def get_user_api_type(user) do
     with {:ok, _access_token, api_type} <- get_user_zenodo_token(user) do
       api_type
+    else
+      _e ->
+        nil
     end
   end
 
@@ -403,7 +406,7 @@ defmodule Bonfire.OpenScience.Zenodo do
   end
 
   def zenodo_base_url do
-    if System.get_env("ZENODO_ENV") == "sandbox", do: @zenodo_sandbox_url, else: @zenodo_base_url
+    if System.get_env("ZENODO_ENV") == "sandbox", do: @sandbox_url, else: @base_url
   end
 
   def invenio_base_url do

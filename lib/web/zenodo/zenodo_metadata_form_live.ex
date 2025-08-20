@@ -108,150 +108,28 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     |> assign(
       metadata: metadata,
       replies: if(api_type == :invenio, do: replies),
-      notes: comments_as_note(replies, :html, replies_opts),
+      notes: comments_as_note(replies, :html),
       # additional_descriptions: if(api_type==:invenio, do: comments_as_descriptions(replies, opts)),
       reply_ids: replies |> Enum.map(&e(&1, :activity, :id, nil)),
       creators: creators
     )
   end
 
-  defp replies_opts(limit \\ 5_000) do
+  defp replies_opts() do
     [
       #  NOTE: we only want to include public ones
       current_user: nil,
       preload: [:with_subject, :with_post_content],
-      limit: limit,
-      max_depth: limit
+      limit: 5000,
+      max_depth: 5000
       # sort_by: sort_by
     ]
   end
 
   defp comments_as_note(replies, render_as \\ :html, opts \\ []) do
-    replies
-    |> Bonfire.Social.Threads.prepare_replies_tree(opts)
-    |> debug("repliesstreee")
-    # |> Enum.map(fn {reply, child_replies} ->
-    # render_recursive_descriptions(reply, child_replies, render_as)
-    # end)
-    |> recursive_descriptions(render_as)
+    maybe_apply(Bonfire.UI.Posts, :render_replies, [replies, render_as, opts])
     |> Enum.reject(&(&1 == ""))
     |> Enum.join("\n")
-  end
-
-  defp comments_as_descriptions(replies, render_as \\ :html, opts \\ []) do
-    replies
-    |> Bonfire.Social.Threads.prepare_replies_tree(opts)
-    |> debug("repliesstreee")
-    # |> Enum.map(fn {reply, child_replies} ->
-    # render_recursive_descriptions(reply, child_replies, render_as)
-    # end)
-    |> recursive_descriptions(render_as)
-  end
-
-  defp recursive_descriptions(replies, render_as \\ :html) do
-    replies
-    |> Enum.map(fn {reply, child_replies} ->
-      render_recursive_descriptions(reply, child_replies, render_as)
-    end)
-  end
-
-  defp render_recursive_descriptions(reply, child_replies, render_as \\ :html, level \\ 0)
-
-  defp render_recursive_descriptions(reply, child_replies, :markdown, level) do
-    author =
-      e(reply, :activity, :subject, :profile, :name, nil) ||
-        e(reply, :activity, :subject, :character, :username, nil) ||
-        "Unknown"
-
-    fields = [
-      {"**#{author}:**", true},
-      {e(reply, :activity, :object, :post_content, :name, nil), false},
-      {e(reply, :activity, :object, :post_content, :summary, nil), false},
-      {e(reply, :activity, :object, :post_content, :html_body, nil), false}
-    ]
-
-    content =
-      fields
-      |> Enum.map(fn
-        {text, true} when is_binary(text) and text != "" ->
-          "#{text}\n"
-
-        {text, false} when is_binary(text) ->
-          text = String.trim(text)
-          if text not in ["", "<p> </p>"], do: "#{text}\n", else: ""
-
-        _ ->
-          ""
-      end)
-      |> Enum.join("")
-      |> String.trim()
-
-    quote_prefix = String.duplicate("> ", level)
-
-    quoted_content =
-      content
-      |> String.split("\n")
-      |> Enum.map(&(quote_prefix <> &1))
-      |> Enum.join("\n")
-
-    children =
-      child_replies
-      |> Enum.map(fn {child, children} ->
-        render_recursive_descriptions(child, children, :markdown, level + 1)
-      end)
-      |> Enum.reject(&(&1 == ""))
-      |> Enum.join("\n")
-
-    result =
-      if children != "" do
-        quoted_content <> "\n" <> children
-      else
-        quoted_content
-      end
-
-    result
-    |> Text.sentence_truncate(50_000)
-  end
-
-  defp render_recursive_descriptions(reply, child_replies, _html, _) do
-    fields = [
-      {"<strong>#{e(reply, :activity, :subject, :profile, :name, nil)} (#{e(reply, :activity, :subject, :character, :username, nil)}):</strong>",
-       true},
-      {e(reply, :activity, :object, :post_content, :name, nil), false},
-      {e(reply, :activity, :object, :post_content, :summary, nil)
-       |> Text.maybe_markdown_to_html(), false},
-      {e(reply, :activity, :object, :post_content, :html_body, nil)
-       |> Text.maybe_markdown_to_html(), false}
-    ]
-
-    content =
-      fields
-      |> Enum.map(fn
-        {text, true} ->
-          "<p>#{text}</p>"
-
-        {text, false} when is_binary(text) ->
-          text = String.trim(text) |> debug("txxxt")
-          if text not in ["", "<p> </p>"], do: "<p>#{text}</p>", else: ""
-
-        _ ->
-          ""
-      end)
-      |> Enum.join("")
-
-    children =
-      child_replies
-      |> Enum.map(fn {child, children} -> render_recursive_descriptions(child, children) end)
-      |> Enum.reject(&(&1 == ""))
-      |> Enum.join("")
-
-    """
-    <blockquote class="ml-4 border-l-1">
-    #{content}
-    #{children}
-    </blockquote>
-    """
-    |> Text.sentence_truncate(50_000)
   end
 
   defp thread_participants_as_creators(participants, post, current_user) do
