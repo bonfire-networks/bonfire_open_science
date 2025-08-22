@@ -10,7 +10,7 @@
       <:open_btn>
         <div class="text-left">
           <!-- <Iconify.iconify icon="carbon:cloud-upload" class="w-4 h-4" /> -->
-          <span>{l("Create DOI and publish on %{api_type}", api_type: api_type)}</span>
+          <span>{l("Archive on %{api_type}", api_type: api_type)}</span>
         </div>
       </:open_btn>
 
