@@ -77,9 +77,12 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
       e(current_user, :profile, :website, "") ||
         e(current_user, :profile, :location, "")
 
+    user_orcid_meta = Bonfire.OpenScience.ORCID.user_orcid_meta(current_user)
+    user_orcid_id = Bonfire.OpenScience.ORCID.orcid_id(user_orcid_meta) |> ok_unwrap()
+
     initial_creator = %{
       "name" => author_name,
-      "orcid" => Bonfire.OpenScience.ORCID.user_orcid_id(current_user) |> ok_unwrap(),
+      "orcid" => user_orcid_id,
       "affiliation" => author_affiliation
     }
 
@@ -104,6 +107,8 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
       "keywords" => keywords
     }
 
+    has_orcid_token = user_orcid_id && Bonfire.OpenScience.ORCID.has_orcid_write_access?()
+
     socket
     |> assign(
       metadata: metadata,
@@ -112,8 +117,8 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
       # additional_descriptions: if(api_type==:invenio, do: comments_as_descriptions(replies, opts)),
       reply_ids: replies |> Enum.map(&e(&1, :activity, :id, nil)),
       creators: creators,
-      has_orcid_token: Bonfire.OpenScience.ORCID.has_orcid_write_access?(current_user),
-      add_to_orcid: Bonfire.OpenScience.ORCID.has_orcid_write_access?(current_user)
+      has_orcid_token: has_orcid_token,
+      add_to_orcid: has_orcid_token
     )
   end
 
@@ -276,7 +281,9 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
 
     errors = validate_metadata(metadata, creators)
 
-    {:noreply, socket |> assign(metadata: metadata, creators: creators, errors: errors, add_to_orcid: add_to_orcid)}
+    {:noreply,
+     socket
+     |> assign(metadata: metadata, creators: creators, errors: errors, add_to_orcid: add_to_orcid)}
   end
 
   def handle_event("submit", params, socket) do
@@ -373,7 +380,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
       end
 
     # Validate ORCID format for any provided ORCIDs
-    invalid_orcids = 
+    invalid_orcids =
       visible_creators
       |> Enum.filter(fn c ->
         orcid = String.trim(c["orcid"] || "")
@@ -480,24 +487,25 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
         e(result, :published, nil) ->
           # Try to add to ORCID if user opted in
           debug({socket.assigns.add_to_orcid, creators}, "ORCID publishing check")
-          
-          orcid_result = 
+
+          orcid_result =
             if socket.assigns.add_to_orcid do
               debug("Attempting ORCID publishing")
-              Bonfire.OpenScience.ORCID.Works.maybe_add_to_orcid(current_user, doi, metadata, creators)
-            else
-              debug("ORCID publishing skipped - checkbox not checked")
-              :skipped
+
+              Bonfire.OpenScience.ORCID.MemberAPI.maybe_add_to_orcid(
+                current_user,
+                doi,
+                metadata,
+                creators
+              )
             end
-          
+
           debug(orcid_result, "ORCID publishing result")
 
-          flash_message = 
+          flash_message =
             case orcid_result do
-              :ok -> "Successfully published DOI: #{doi} and added to ORCID profile"
-              :already_exists -> "Successfully published DOI: #{doi} (already in ORCID profile)"
-              :skipped -> "Successfully published DOI: #{doi}"
-              :failed -> "Successfully published DOI: #{doi} (ORCID update failed)"
+              {:ok, _} -> "Successfully published DOI: #{doi} and added to your ORCID profile."
+              {:error, e} when is_binary(e) -> "Successfully published DOI: #{doi}\n#{e}"
               _ -> "Successfully published DOI: #{doi}"
             end
 
@@ -527,7 +535,9 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
       {:error, :publish_failed} ->
         socket
         |> assign(submitting: false)
-        |> assign_error("Failed to publish to Zenodo. Please check your metadata (especially ORCID IDs) and try again.")
+        |> assign_error(
+          "Failed to publish to Zenodo. Please check your metadata (especially ORCID IDs) and try again."
+        )
 
       {:error, reason} when is_binary(reason) ->
         socket

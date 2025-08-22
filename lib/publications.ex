@@ -11,7 +11,8 @@ defmodule Bonfire.OpenScience.Publications do
   alias Bonfire.Common.Cache
   alias Bonfire.Common.Settings
 
-  @default_cache_ttl 1_000 * 60 * 60 * 3  # 3 hours
+  # 3 hours
+  @default_cache_ttl 1_000 * 60 * 60 * 3
 
   @doc """
   Gets author information from OpenAlex for a user with caching.
@@ -172,14 +173,15 @@ defmodule Bonfire.OpenScience.Publications do
   """
   def invalidate_user_cache(user) do
     case ORCID.user_orcid_id(user) do
-      {:ok, orcid_id} -> 
+      {:ok, orcid_id} ->
         Cache.reset(&Client.fetch_author/1, [orcid_id])
         Cache.reset(&Client.fetch_recent_publication/1, [orcid_id])
         Cache.reset(&Client.fetch_most_cited_publication/1, [orcid_id])
         Cache.reset(&Client.fetch_works_by_type/1, [orcid_id])
         Cache.reset(&fetch_complete_data_uncached/1, [orcid_id])
         :ok
-      _ -> 
+
+      _ ->
         :ok
     end
   end

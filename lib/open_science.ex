@@ -231,4 +231,16 @@ defmodule Bonfire.OpenScience do
   end
 
   defp is_academic_repository_url?(_), do: false
+
+  def map_zenodo_type_to_orcid(zenodo_type) do
+    case zenodo_type do
+      "publication" -> "journal-article"
+      "poster" -> "conference-poster"
+      "presentation" -> "conference-abstract"
+      "dataset" -> "data-set"
+      "software" -> "research-tool"
+      "other" -> "other"
+      _ -> "other"
+    end
+  end
 end

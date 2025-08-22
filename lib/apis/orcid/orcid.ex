@@ -13,17 +13,17 @@ defmodule Bonfire.OpenScience.ORCID do
 
   @doc """
   Validates an ORCID identifier format.
-  Returns {:ok, orcid_id} if valid, {:error, :invalid_orcid_format} otherwise.
+  Returns {:ok, orcid_id} if valid, {:error, _} otherwise.
   """
   def validate(orcid_id) when is_binary(orcid_id) do
     if Regex.match?(orcid_format(), orcid_id) do
       {:ok, orcid_id}
     else
-      {:error, :invalid_orcid_format}
+      error(orcid_id, "Invalid ORCID format.")
     end
   end
 
-  def validate(_), do: {:error, :invalid_orcid_format}
+  def validate(other), do: error(other, "Invalid ORCID format.")
 
   defp is_orcid_work_url?(url) when is_binary(url) do
     String.contains?(url, "orcid.org/") and String.contains?(url, "/work/")
@@ -59,12 +59,21 @@ defmodule Bonfire.OpenScience.ORCID do
 
   def extract_from_path(_), do: nil
 
+  def user_orcid_meta(user) do
+    OpenScience.user_alias_by_type(user, "orcid")
+  end
+
   def user_orcid_id(user) do
-    case OpenScience.user_alias_by_type(user, "orcid")
+    user_orcid_meta(user)
+    |> orcid_id()
+  end
+
+  def orcid_id(orcid_meta) do
+    case orcid_meta
          |> e(:path, nil)
          |> extract_from_path() do
       nil ->
-        {:error, :no_orcid}
+        error("You don't seem to be signed into an ORCID profile.")
 
       orcid_id ->
         {:ok, orcid_id}
@@ -77,18 +86,31 @@ defmodule Bonfire.OpenScience.ORCID do
   This uses the same token from OAuth authentication.
   """
   def get_user_orcid_write_token(user) do
-    case OpenScience.user_alias_by_type(user, "orcid") do
-      nil ->
-        {:error, :no_orcid_profile}
+    if has_orcid_write_access?() do
+      user_orcid_meta(user)
+      |> orcid_write_token()
+    else
+      error("This instance does not have permission to write to ORCID.")
+    end
+  end
 
-      orcid_media ->
-        access_token = e(orcid_media, :metadata, "orcid", "access_token", nil)
+  def orcid_write_token(orcid_meta) do
+    if has_orcid_write_access?() do
+      case orcid_meta do
+        nil ->
+          error("You don't seem to be signed into an ORCID profile.")
 
-        if access_token && access_token != "" do
-          {:ok, access_token}
-        else
-          {:error, :no_write_token}
-        end
+        orcid_media ->
+          access_token = e(orcid_media, :metadata, "orcid", "access_token", nil)
+
+          if access_token && access_token != "" do
+            {:ok, access_token}
+          else
+            error("You don't seem to be correctly signed into an ORCID profile.")
+          end
+      end
+    else
+      error("This instance does not have permission to write to ORCID.")
     end
   end
 
@@ -96,11 +118,15 @@ defmodule Bonfire.OpenScience.ORCID do
   Checks if user has ORCID OAuth access token available.
   This means they've authenticated with ORCID and can potentially write to their profile.
   """
-  def has_orcid_write_access?(user) do
+  def user_has_orcid_write_access?(user) do
     case get_user_orcid_write_token(user) do
       {:ok, _token} -> true
       _ -> false
     end
+  end
+
+  def has_orcid_write_access? do
+    System.get_env("ORCID_WITH_MEMBER_API") == "yes"
   end
 
   defp fetch_orcid_data(metadata, type \\ "record")
@@ -136,8 +162,7 @@ defmodule Bonfire.OpenScience.ORCID do
       {:ok, transform_orcid_work_to_metadata(work_data)}
     else
       error ->
-        error(error, "Failed to fetch ORCID work metadata")
-        {:error, :orcid_fetch_failed}
+        error(error, l("Failed to fetch ORCID work metadata"))
     end
   end
 
@@ -145,7 +170,7 @@ defmodule Bonfire.OpenScience.ORCID do
     # Handle URLs with optional extra slashes
     case Regex.run(~r/orcid\.org\/+(\d{4}-\d{4}-\d{4}-\d{3}[0-9X])\/work\/(\d+)/, url) do
       [_, orcid_id, work_id] -> {:ok, orcid_id, work_id}
-      _ -> {:error, :invalid_orcid_work_url}
+      e -> error(e, "Invalid ORCID work URL.")
     end
   end
 
