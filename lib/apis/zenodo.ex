@@ -85,17 +85,21 @@ defmodule Bonfire.OpenScience.Zenodo do
          {:ok, file_infos} <-
            upload_files(bucket_url || deposit_id, files, access_token, api_type, opts),
          result = %{deposit: deposit, files: file_infos} do
-      auto_publish = Keyword.get(opts, :auto_publish, true)
 
-      case maybe_publish(deposit_id, access_token, api_type, opts) do
-        false when auto_publish ->
-          # Auto-publish was requested but failed
-          {:error, :publish_failed}
+      # return the draft and/or published record
+      {:ok, Map.put(result, :published, maybe_publish(deposit_id, access_token, api_type, opts))}
 
-        published_result ->
-          # Either published successfully or auto_publish was false
-          {:ok, Map.put(result, :published, published_result)}
-      end
+      # auto_publish = Keyword.get(opts, :auto_publish, true)
+
+      # case maybe_publish(deposit_id, access_token, api_type, opts) do
+      #   false when auto_publish ->
+      #     # Auto-publish was requested but failed
+      #     {:error, :publish_failed}
+
+      #   published_result ->
+      #     # Either published successfully or auto_publish was false
+      #     {:ok, Map.put(result, :published, published_result)}
+      # end
     end
   end
 

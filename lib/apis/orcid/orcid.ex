@@ -16,7 +16,7 @@ defmodule Bonfire.OpenScience.ORCID do
   Returns {:ok, orcid_id} if valid, {:error, _} otherwise.
   """
   def validate(orcid_id) when is_binary(orcid_id) do
-    if Regex.match?(orcid_format(), orcid_id) do
+    if valid_orcid_format?(orcid_id) do
       {:ok, orcid_id}
     else
       error(orcid_id, "Invalid ORCID format.")
@@ -24,6 +24,11 @@ defmodule Bonfire.OpenScience.ORCID do
   end
 
   def validate(other), do: error(other, "Invalid ORCID format.")
+
+  # Validate ORCID format: ####-####-####-###X (where X can be digit or X)
+  def valid_orcid_format?(orcid) do
+    Regex.match?(~r/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/, orcid)
+  end
 
   defp is_orcid_work_url?(url) when is_binary(url) do
     String.contains?(url, "orcid.org/") and String.contains?(url, "/work/")

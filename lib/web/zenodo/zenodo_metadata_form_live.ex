@@ -384,7 +384,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
       visible_creators
       |> Enum.filter(fn c ->
         orcid = String.trim(c["orcid"] || "")
-        orcid != "" and not valid_orcid_format?(orcid)
+        orcid != "" and not ORCID.valid_orcid_format?(orcid)
       end)
       |> Enum.map(fn c -> c["name"] || "Unknown author" end)
 
@@ -522,7 +522,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
 
           socket
           |> assign(submitting: false)
-          |> assign_flash(:info, "Draft created with DOI: #{doi}")
+          |> assign_flash(:info, l("Draft created with DOI: #{doi} (but not published, you can edit the draft on %{platform_name} and publish it from there)", platform_name: api_type))
 
         true ->
           Bonfire.UI.Common.OpenModalLive.close()
@@ -599,8 +599,5 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     ]
   end
 
-  # Validate ORCID format: ####-####-####-###X (where X can be digit or X)
-  defp valid_orcid_format?(orcid) do
-    Regex.match?(~r/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/, orcid)
-  end
+
 end
