@@ -10,8 +10,11 @@ defmodule Bonfire.OpenScience.RuntimeConfig do
   def config do
     import Config
 
-    # config :bonfire_open_science,
-    #   modularity: :disabled
+    config :bonfire_open_science,
+      # Which ORCID work visibility levels to import
+      # Available values: "public", "limited", "private", "registered-only" 
+      # Default: only "public" to respect privacy
+      orcid_work_visibility_levels: ["public"]
 
     config :bonfire, :ui,
       profile: [

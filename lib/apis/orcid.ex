@@ -6,6 +6,7 @@ defmodule Bonfire.OpenScience.ORCID do
   use Bonfire.Common.Utils
   alias Bonfire.OpenScience
   alias Bonfire.OpenScience.DOI
+  alias Bonfire.Common.Config
 
   # ORCID format: 0000-0000-0000-0000 (4 groups of 4 digits/X separated by hyphens)
   def orcid_format(), do: ~r/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/
@@ -205,6 +206,13 @@ defmodule Bonfire.OpenScience.ORCID do
       |> debug("wwworks")
       |> Enum.map(fn %{"work-summary" => summaries} ->
         summaries
+        |> Enum.filter(fn summary ->
+          # Filter based on configured visibility levels  
+          allowed_levels =
+            Config.get([:bonfire_open_science, :orcid_work_visibility_levels], ["public"])
+
+          e(summary, "visibility", nil) in allowed_levels
+        end)
         |> Enum.map(fn summary ->
           Bonfire.OpenScience.maybe_fetch_and_save_work(
             user,

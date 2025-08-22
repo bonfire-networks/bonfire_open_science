@@ -7,16 +7,16 @@
           <!-- <span class="badge badge-sm badge-info">{l("OpenAlex source")}</span> -->
         </div>
         <div class="flex text-sm flex-col gap-2">
-          <div class="flex justify-between gap-4 pt-2"><span class="font-medium">{l("Works count")}</span> <span class="badge badge-neutral badge-sm">{e(@open_alex_data, "works_count", nil)}</span></div>
-          <div class="flex justify-between gap-4 pt-2"><span class="font-medium">{l("Citations count")}</span> <span class="badge badge-neutral badge-sm">{e(@open_alex_data, "cited_by_count", nil)}</span></div>
-          <div class="flex justify-between gap-4 pt-2"><span class="font-medium">{l("2yr mean citedness")}</span> <span class="badge badge-neutral badge-sm">{case e(@open_alex_data, "summary_stats", "2yr_mean_citedness", nil) do
+          <div class="flex justify-between gap-4 pt-2"><span class="font-medium">{l("Works count")}</span> <span class="badge badge-soft badge-sm">{e(@open_alex_data, "works_count", nil)}</span></div>
+          <div class="flex justify-between gap-4 pt-2"><span class="font-medium">{l("Citations count")}</span> <span class="badge badge-soft badge-sm">{e(@open_alex_data, "cited_by_count", nil)}</span></div>
+          <div class="flex justify-between gap-4 pt-2"><span class="font-medium">{l("2yr mean citedness")}</span> <span class="badge badge-soft badge-sm">{case e(@open_alex_data, "summary_stats", "2yr_mean_citedness", nil) do
                 nil -> "N/A"
                 value -> Float.round(value, 2)
               end}</span></div>
-          <div class="flex justify-between gap-4 pt-2"><span class="font-medium">{l("H index")}</span> <span class="badge badge-neutral badge-sm">{e(@open_alex_data, "summary_stats", "h_index", nil)}</span></div>
-          <div class="flex justify-between gap-4 pt-2"><span class="font-medium">{l("i-10 index")}</span> <span class="badge badge-neutral badge-sm">{e(@open_alex_data, "summary_stats", "i10_index", nil)}</span></div>
+          <div class="flex justify-between gap-4 pt-2"><span class="font-medium">{l("H index")}</span> <span class="badge badge-soft badge-sm">{e(@open_alex_data, "summary_stats", "h_index", nil)}</span></div>
+          <div class="flex justify-between gap-4 pt-2"><span class="font-medium">{l("i-10 index")}</span> <span class="badge badge-soft badge-sm">{e(@open_alex_data, "summary_stats", "i10_index", nil)}</span></div>
         </div>
-        <!-- <div class="badge badge-neutral badge-sm">OpenAlex source</div> -->
+        <!-- <div class="badge badge-soft badge-sm">OpenAlex source</div> -->
       </Bonfire.UI.Common.WidgetBlockLive>
 
       <Bonfire.UI.Common.WidgetBlockLive>
@@ -32,7 +32,7 @@
                 x-show={"showAll || #{elem(topic, 1)} < 5"}
               >
                 <span class="font-medium">{e(elem(topic, 0), "display_name", nil)}</span>
-                <span class="badge badge-neutral badge-sm">{e(elem(topic, 0), "count", nil)}</span>
+                <span class="badge badge-soft badge-sm">{e(elem(topic, 0), "count", nil)}</span>
               </div>
             {/for}
           </div>
@@ -57,7 +57,7 @@
           {#for type <- filter_non_zero_counts(@works_by_type)}
             <div class="flex justify-between gap-4 pt-2">
               <span class="font-medium">{e(type, "display_name", "Unknown Type")}</span>
-              <span class="badge badge-neutral badge-sm">{e(type, "count", 0)}</span>
+              <span class="badge badge-soft badge-sm">{e(type, "count", 0)}</span>
             </div>
           {/for}
         </div>
