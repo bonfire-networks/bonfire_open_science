@@ -72,6 +72,37 @@ defmodule Bonfire.OpenScience.ORCID do
     end
   end
 
+  @doc """
+  Gets ORCID OAuth access token for a user from existing OAuth flow.
+  This uses the same token from OAuth authentication.
+  """
+  def get_user_orcid_write_token(user) do
+    case OpenScience.user_alias_by_type(user, "orcid") do
+      nil ->
+        {:error, :no_orcid_profile}
+
+      orcid_media ->
+        access_token = e(orcid_media, :metadata, "orcid", "access_token", nil)
+
+        if access_token && access_token != "" do
+          {:ok, access_token}
+        else
+          {:error, :no_write_token}
+        end
+    end
+  end
+
+  @doc """
+  Checks if user has ORCID OAuth access token available.
+  This means they've authenticated with ORCID and can potentially write to their profile.
+  """
+  def has_orcid_write_access?(user) do
+    case get_user_orcid_write_token(user) do
+      {:ok, _token} -> true
+      _ -> false
+    end
+  end
+
   defp fetch_orcid_data(metadata, type \\ "record")
 
   defp fetch_orcid_data(%{"sub" => orcid_id, "access_token" => access_token}, type) do

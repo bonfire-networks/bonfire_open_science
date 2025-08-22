@@ -111,7 +111,9 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
       notes: comments_as_note(replies, :html),
       # additional_descriptions: if(api_type==:invenio, do: comments_as_descriptions(replies, opts)),
       reply_ids: replies |> Enum.map(&e(&1, :activity, :id, nil)),
-      creators: creators
+      creators: creators,
+      has_orcid_token: Bonfire.OpenScience.ORCID.has_orcid_write_access?(current_user),
+      add_to_orcid: Bonfire.OpenScience.ORCID.has_orcid_write_access?(current_user)
     )
   end
 
@@ -269,9 +271,12 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
         socket.assigns.creators
       end
 
+    # Handle ORCID checkbox
+    add_to_orcid = Map.get(params, "add_to_orcid") == "on"
+
     errors = validate_metadata(metadata, creators)
 
-    {:noreply, socket |> assign(metadata: metadata) |> assign(errors: errors)}
+    {:noreply, socket |> assign(metadata: metadata, creators: creators, errors: errors, add_to_orcid: add_to_orcid)}
   end
 
   def handle_event("submit", params, socket) do
@@ -367,6 +372,22 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
         errors
       end
 
+    # Validate ORCID format for any provided ORCIDs
+    invalid_orcids = 
+      visible_creators
+      |> Enum.filter(fn c ->
+        orcid = String.trim(c["orcid"] || "")
+        orcid != "" and not valid_orcid_format?(orcid)
+      end)
+      |> Enum.map(fn c -> c["name"] || "Unknown author" end)
+
+    errors =
+      if invalid_orcids != [] do
+        Map.put(errors, :creators, "Invalid ORCID format for: #{Enum.join(invalid_orcids, ", ")}")
+      else
+        errors
+      end
+
     # Validate license if access_right is open or embargoed
     if metadata["access_right"] in ["open", "embargoed"] do
       if is_nil(metadata["license"]) or metadata["license"] == "" do
@@ -457,11 +478,34 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
            |> debug("attached?") do
       cond do
         e(result, :published, nil) ->
+          # Try to add to ORCID if user opted in
+          debug({socket.assigns.add_to_orcid, creators}, "ORCID publishing check")
+          
+          orcid_result = 
+            if socket.assigns.add_to_orcid do
+              debug("Attempting ORCID publishing")
+              Bonfire.OpenScience.ORCID.Works.maybe_add_to_orcid(current_user, doi, metadata, creators)
+            else
+              debug("ORCID publishing skipped - checkbox not checked")
+              :skipped
+            end
+          
+          debug(orcid_result, "ORCID publishing result")
+
+          flash_message = 
+            case orcid_result do
+              :ok -> "Successfully published DOI: #{doi} and added to ORCID profile"
+              :already_exists -> "Successfully published DOI: #{doi} (already in ORCID profile)"
+              :skipped -> "Successfully published DOI: #{doi}"
+              :failed -> "Successfully published DOI: #{doi} (ORCID update failed)"
+              _ -> "Successfully published DOI: #{doi}"
+            end
+
           Bonfire.UI.Common.OpenModalLive.close()
 
           socket
           |> assign(submitting: false)
-          |> assign_flash(:info, "Successfully published DOI: #{doi}")
+          |> assign_flash(:info, flash_message)
 
         doi = e(deposit, "metadata", "prereserve_doi", "doi", nil) ->
           doi = "https://doi.org/#{doi}"
@@ -480,6 +524,11 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
           |> assign_flash(:info, "Draft created")
       end
     else
+      {:error, :publish_failed} ->
+        socket
+        |> assign(submitting: false)
+        |> assign_error("Failed to publish to Zenodo. Please check your metadata (especially ORCID IDs) and try again.")
+
       {:error, reason} when is_binary(reason) ->
         socket
         |> assign(submitting: false)
@@ -538,5 +587,10 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
       {"MIT License", "MIT"},
       {"Apache License 2.0", "Apache-2.0"}
     ]
+  end
+
+  # Validate ORCID format: ####-####-####-###X (where X can be digit or X)
+  defp valid_orcid_format?(orcid) do
+    Regex.match?(~r/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/, orcid)
   end
 end

@@ -85,7 +85,17 @@ defmodule Bonfire.OpenScience.Zenodo do
          {:ok, file_infos} <-
            upload_files(bucket_url || deposit_id, files, access_token, api_type, opts),
          result = %{deposit: deposit, files: file_infos} do
-      {:ok, Map.put(result, :published, maybe_publish(deposit_id, access_token, api_type, opts))}
+      
+      auto_publish = Keyword.get(opts, :auto_publish, true)
+      
+      case maybe_publish(deposit_id, access_token, api_type, opts) do
+        false when auto_publish ->
+          # Auto-publish was requested but failed
+          {:error, :publish_failed}
+        published_result ->
+          # Either published successfully or auto_publish was false
+          {:ok, Map.put(result, :published, published_result)}
+      end
     end
   end
 
@@ -184,13 +194,16 @@ defmodule Bonfire.OpenScience.Zenodo do
         %{"metadata" => metadata |> Map.put("creators", creators)}
       end
 
+    debug(payload, "Zenodo API payload being sent")
+    
     with {:ok, %{body: body, status: status}} when status in 200..299 <-
            Req.post(url,
              json: payload,
              headers: [
                {"Accept", "application/json"},
                {"Authorization", "Bearer #{access_token}"}
-             ]
+             ],
+             receive_timeout: 60_000  # 60 seconds timeout for Zenodo API
            ) do
       {:ok, body}
     else
