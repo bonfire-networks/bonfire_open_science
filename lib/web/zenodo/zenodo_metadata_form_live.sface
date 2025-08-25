@@ -62,12 +62,7 @@
     <div>
       <label class="input w-full">
         <span class="label">{l("Upload type")}</span>
-        <select 
-          name="metadata[upload_type]" 
-          class="w-full" 
-          phx-change="validate" 
-          phx-target={@myself}
-        >
+        <select name="metadata[upload_type]" class="w-full" phx-change="validate" phx-target={@myself}>
           {#for {label, value} <- upload_type_options()}
             <option value={value} selected={@current_metadata["upload_type"] == value}>
               {label}
@@ -106,7 +101,12 @@
     {!-- Title --}
     <label class="input w-full">
       <span class="label">{l("Title")}</span>
-      <TextInput field={:title} value={@current_metadata["title"]} class="w-full" opts={maxlength: "500"} />
+      <TextInput
+        field={:title}
+        value={@current_metadata["title"]}
+        class="w-full"
+        opts={maxlength: "500"}
+      />
       {#if Map.has_key?(@errors, :title)}
         <span class="text-error text-sm">{@errors.title}</span>
       {/if}
@@ -223,15 +223,15 @@
     <div>
       <label class="input w-full">
         <span class="label">{l("Publication Date")} *</span>
-        <DateInput 
-          field={:publication_date} 
-          value={@current_metadata["publication_date"]} 
+        <DateInput
+          field={:publication_date}
+          value={@current_metadata["publication_date"]}
           class="w-full"
         />
       </label>
-        {#if Map.has_key?(@errors, :publication_date)}
-          <span class="text-error text-sm">{@errors.publication_date}</span>
-        {/if}
+      {#if Map.has_key?(@errors, :publication_date)}
+        <span class="text-error text-sm">{@errors.publication_date}</span>
+      {/if}
     </div>
 
     {!-- Access Rights --}
@@ -265,12 +265,7 @@
     >
       <label class="input w-full">
         <span class="label">{l("License")}</span>
-        <select 
-          name="metadata[license]" 
-          class="w-full" 
-          phx-change="validate" 
-          phx-target={@myself}
-        >
+        <select name="metadata[license]" class="w-full" phx-change="validate" phx-target={@myself}>
           {#for {label, value} <- license_options()}
             <option value={value} selected={@current_metadata["license"] == value}>
               {label}

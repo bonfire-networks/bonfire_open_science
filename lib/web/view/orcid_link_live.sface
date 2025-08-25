@@ -1,8 +1,7 @@
 <div class="max-w-4xl mx-auto">
-  
   <!-- Loading State -->
   <div :if={@loading} class="flex justify-center items-center py-12">
-    <span class="loading loading-spinner loading-lg"></span>
+    <span class="loading loading-spinner loading-lg" />
     <span class="ml-3 text-base-content/70">{l("Loading publication...")}</span>
   </div>
 
@@ -14,9 +13,7 @@
 
   <!-- Main Content -->
   <div :if={@activity && @object && !@loading && !@error} class="space-y-6">
-    
     <!-- Publication Preview using ActivityLive -->
-    
 
     <!-- ORCID Form Section -->
     <div class="">
@@ -30,24 +27,26 @@
               </div>
               <div class="flex-1">
                 <h3 class="font-semibold text-lg mb-3">{l("Add Your ORCID iD for Proper Attribution")}</h3>
-                
+
                 <div class="space-y-4 text-sm">
                   <div>
                     <h4 class="font-medium text-base-content mb-1">{l("What you need to do:")}</h4>
                     <p class="text-base-content/80">{l("- Fill the form with your ORCID iD (format: XXXX-XXXX-XXXX-XXXX)")}</p>
                     <p class="text-base-content/80">{l("- Or authenticate with your ORCID credential to automatically submit it")}</p>
                   </div>
-                  
+
                   <div>
                     <h4 class="font-medium text-base-content mb-1">{l("Why this matters:")}</h4>
                     <p class="text-base-content/80">{l("Your ORCID ensures you get proper credit as a co-author in the publication metadata")}</p>
                   </div>
-                  
+
                   <div>
                     <h4 class="font-medium text-base-content mb-1">{l("What happens next:")}</h4>
-                    <p class="text-base-content/80">{l("Your ORCID will be added to the publication metadata and you'll be properly credited as a researcher")}</p>
+                    <p class="text-base-content/80">{l(
+                        "Your ORCID will be added to the publication metadata and you'll be properly credited as a researcher"
+                      )}</p>
                   </div>
-                  
+
                   <div class="pt-2 border-t border-base-content/10">
                     <a href="https://orcid.org/about" target="_blank" class="link link-primary text-sm">
                       {l("Learn more about ORCID")} <#Icon iconify="heroicons-solid:external-link" class="w-3 h-3 inline" />
@@ -60,19 +59,19 @@
         </div>
 
         <div class="m-3 rounded-lg border border-base-content/10">
-            <div class="p-3 border-b border-base-content/10 font-semibold">{l("Publication:")}</div>
-            <StatefulComponent 
-                module={Bonfire.UI.Social.ActivityLive}
-                id="orcid_publication_preview"
-                activity={@activity}
-                object={@object}
-                showing_within={:orcid_link}
-                hide_actions={true}
-                hide_reply={true}
-            />
-            
-            <!-- Navigation to discussion -->
-            <!-- <div class="mt-4 pt-3 border-t border-base-content/10">
+          <div class="p-3 border-b border-base-content/10 font-semibold">{l("Publication:")}</div>
+          <StatefulComponent
+            module={Bonfire.UI.Social.ActivityLive}
+            id="orcid_publication_preview"
+            activity={@activity}
+            object={@object}
+            showing_within={:orcid_link}
+            hide_actions
+            hide_reply
+          />
+
+          <!-- Navigation to discussion -->
+          <!-- <div class="mt-4 pt-3 border-t border-base-content/10">
               <a href={path(@object)} class="btn btn-outline btn-sm">
                 <#Icon iconify="heroicons-solid:chat-bubble-left-right" class="w-4 h-4" />
                 {l("View Full Discussion")}
@@ -87,7 +86,7 @@
               <#Icon iconify="academicons:orcid" class="w-5 h-5 text-success" />
               {l("Submit Your ORCID iD")}
             </h3>
-            
+
             <!-- Manual ORCID Input -->
             <div class="space-y-4">
               <div>
@@ -96,8 +95,8 @@
                 </label>
                 <form phx-submit="submit_orcid" class="flex gap-3">
                   <div class="flex-1">
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       name="orcid_id"
                       placeholder="0000-0000-0000-0000"
                       pattern="\d{4}-\d{4}-\d{4}-\d{3}[\dX]"
@@ -114,10 +113,10 @@
                   </button>
                 </form>
               </div>
-              
+
               <!-- Divider -->
               <div class="divider text-sm text-base-content/60">{l("or")}</div>
-              
+
               <!-- ORCID OAuth Sign-in -->
               <div>
                 <label class="label">
@@ -134,10 +133,7 @@
         </div>
 
         <!-- Temporary Instructions -->
-        
-
       </div>
     </div>
-
   </div>
 </div>

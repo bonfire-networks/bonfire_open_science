@@ -29,7 +29,8 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
 
     debug(post_id, "Loading post for ORCID link page")
 
-    socket = socket
+    socket =
+      socket
       |> assign(
         object_id: post_id,
         doi: doi,
@@ -39,7 +40,6 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
 
     with %Phoenix.LiveView.Socket{} = socket <-
            Bonfire.Social.Objects.LiveHandler.load_object_assigns(socket) do
-
       # Use DOI from params directly - no need to extract from object
       {:noreply,
        socket
@@ -51,11 +51,16 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
       {:error, e} ->
         {:noreply,
          socket
-         |> assign_error(l("The publication you're looking for doesn't exist or you don't have permission to view it."))
+         |> assign_error(
+           l(
+             "The publication you're looking for doesn't exist or you don't have permission to view it."
+           )
+         )
          |> assign(loading: false, error: l("Publication not found"))}
 
       other ->
         error(other, "Failed to load post for ORCID link")
+
         {:noreply,
          socket
          |> assign(loading: false, error: l("Failed to load publication"))
@@ -78,20 +83,32 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
           {:ok, _result} ->
             {:noreply,
              socket
-             |> assign_flash(:info, l("ORCID iD %{orcid} has been added to the publication metadata successfully!", orcid: validated_orcid))
+             |> assign_flash(
+               :info,
+               l("ORCID iD %{orcid} has been added to the publication metadata successfully!",
+                 orcid: validated_orcid
+               )
+             )
              |> assign(submitted_orcid: validated_orcid)}
-          
+
           {:error, reason} ->
             error(reason, "Failed to update DOI metadata with ORCID")
+
             {:noreply,
              socket
-             |> assign_flash(:error, l("Failed to update publication metadata. Please try again or contact support."))}
+             |> assign_flash(
+               :error,
+               l("Failed to update publication metadata. Please try again or contact support.")
+             )}
         end
-      
+
       {:error, _error} ->
         {:noreply,
          socket
-         |> assign_flash(:error, l("Invalid ORCID format. Please use the format: XXXX-XXXX-XXXX-XXXX"))}
+         |> assign_flash(
+           :error,
+           l("Invalid ORCID format. Please use the format: XXXX-XXXX-XXXX-XXXX")
+         )}
     end
   end
 
@@ -107,13 +124,24 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
 
     with {:ok, zenodo_info} <- extract_zenodo_info_from_doi(doi),
          {:ok, publisher_user} <- find_original_publisher(object),
-         {:ok, access_token, api_type} <- Bonfire.OpenScience.Zenodo.get_user_zenodo_token(publisher_user),
-         {:ok, deposit_info} <- Bonfire.OpenScience.Zenodo.get_deposit(zenodo_info.deposit_id, access_token, api_type),
+         {:ok, access_token, api_type} <-
+           Bonfire.OpenScience.Zenodo.get_user_zenodo_token(publisher_user),
+         {:ok, deposit_info} <-
+           Bonfire.OpenScience.Zenodo.get_deposit(zenodo_info.deposit_id, access_token, api_type),
          _ = debug(deposit_info, "Got deposit info for debugging"),
-         {:ok, working_deposit_info, working_deposit_id} <- ensure_editable_deposit(deposit_info, zenodo_info.deposit_id, access_token, api_type),
-         {:ok, updated_creators} <- update_creators_with_orcid(working_deposit_info, current_user, orcid_id),
-         {:ok, result} <- update_zenodo_deposit(working_deposit_info, updated_creators, access_token, api_type, working_deposit_id, doi) do
-      
+         {:ok, working_deposit_info, working_deposit_id} <-
+           ensure_editable_deposit(deposit_info, zenodo_info.deposit_id, access_token, api_type),
+         {:ok, updated_creators} <-
+           update_creators_with_orcid(working_deposit_info, current_user, orcid_id),
+         {:ok, result} <-
+           update_zenodo_deposit(
+             working_deposit_info,
+             updated_creators,
+             access_token,
+             api_type,
+             working_deposit_id,
+             doi
+           ) do
       debug(result, "Successfully updated DOI metadata")
       {:ok, result}
     else
@@ -131,11 +159,13 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
     case extract_deposit_id_from_doi(doi) do
       deposit_id when is_integer(deposit_id) ->
         {:ok, %{deposit_id: deposit_id, doi: doi}}
+
       deposit_id when is_binary(deposit_id) ->
         case Integer.parse(deposit_id) do
           {id, ""} -> {:ok, %{deposit_id: id, doi: doi}}
           _ -> {:error, "Invalid deposit ID in DOI"}
         end
+
       _ ->
         {:error, "Could not extract deposit ID from DOI"}
     end
@@ -166,7 +196,7 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
   defp find_original_publisher(object) do
     # The publisher is typically the creator of the post
     publisher = e(object, :created, :creator, nil) || e(object, :activity, :subject, nil)
-    
+
     case publisher do
       %{} = user ->
         # Verify they have Zenodo credentials
@@ -174,6 +204,7 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
           {:ok, _token, _type} -> {:ok, user}
           _ -> {:error, "Original publisher does not have Zenodo credentials"}
         end
+
       _ ->
         {:error, "Could not find original publisher"}
     end
@@ -183,24 +214,29 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
   defp update_creators_with_orcid(deposit_info, current_user, orcid_id) do
     current_creators = e(deposit_info, "metadata", "creators", [])
     current_user_id = id(current_user)
-    current_user_name = e(current_user, :profile, :name, nil) || e(current_user, :character, :username, nil)
 
-    debug({current_user_id, current_user_name, length(current_creators)}, "Looking for user in creators list")
+    current_user_name =
+      e(current_user, :profile, :name, nil) || e(current_user, :character, :username, nil)
+
+    debug(
+      {current_user_id, current_user_name, length(current_creators)},
+      "Looking for user in creators list"
+    )
 
     # Try to find the current user in the creators list
-    updated_creators = 
+    updated_creators =
       current_creators
       |> Enum.map(fn creator ->
         cond do
           # Match by stored ID
           creator["id"] == current_user_id ->
             Map.put(creator, "orcid", orcid_id)
-          
+
           # Match by name (fallback)
-          current_user_name && creator["name"] && 
-          String.downcase(creator["name"]) == String.downcase(current_user_name) ->
+          current_user_name && creator["name"] &&
+              String.downcase(creator["name"]) == String.downcase(current_user_name) ->
             Map.put(creator, "orcid", orcid_id)
-          
+
           # No match, keep as is
           true ->
             creator
@@ -208,7 +244,7 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
       end)
 
     # Check if any creator was actually updated
-    updated_count = 
+    updated_count =
       Enum.count(updated_creators, fn creator ->
         creator["orcid"] == orcid_id
       end)
@@ -226,11 +262,12 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
   defp update_zenodo_deposit(deposit_info, creators, access_token, api_type, deposit_id, doi) do
     # Get existing metadata and preserve it
     existing_metadata = e(deposit_info, "metadata", %{})
-    
+
     # Clean and prepare metadata for Zenodo (ensure DOI is in correct format)
-    processed_metadata = 
+    processed_metadata =
       existing_metadata
-      |> ensure_correct_doi_format(doi)  # Use the full DOI from URL params
+      # Use the full DOI from URL params
+      |> ensure_correct_doi_format(doi)
       |> MetadataHelpers.clean_metadata_for_zenodo()
 
     debug({deposit_id, length(creators)}, "Updating Zenodo deposit")
@@ -238,25 +275,39 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
     # Use the same workflow as the metadata form for handling published deposits
     is_published = deposit_info["state"] == "done" || deposit_info["doi"] != nil
     debug({is_published, api_type}, "Determining workflow type")
-    
+
     cond do
       is_published and api_type == :zenodo ->
         # For published Zenodo deposits, use the "edit" action first
         edit_url = get_in(deposit_info, ["links", "edit"])
-        
+
         if is_nil(edit_url) do
           error("Edit URL not found in deposit links")
           {:error, "Edit URL not found in deposit links"}
         else
-          zenodo_edit_publish_flow(edit_url, deposit_id, creators, processed_metadata, access_token, api_type)
+          zenodo_edit_publish_flow(
+            edit_url,
+            deposit_id,
+            creators,
+            processed_metadata,
+            access_token,
+            api_type
+          )
         end
-      
+
       true ->
         # For unpublished records or other cases, use direct update  
-        case Bonfire.OpenScience.Zenodo.update_deposit_metadata(deposit_id, creators, processed_metadata, access_token, api_type) do
+        case Bonfire.OpenScience.Zenodo.update_deposit_metadata(
+               deposit_id,
+               creators,
+               processed_metadata,
+               access_token,
+               api_type
+             ) do
           {:ok, result} ->
             debug("DOI metadata updated successfully")
             {:ok, result}
+
           {:error, reason} ->
             error(reason, "Direct metadata update failed")
             {:error, reason}
@@ -265,9 +316,16 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
   end
 
   # Handle the edit-publish workflow for published Zenodo deposits (reuses existing API functions)
-  defp zenodo_edit_publish_flow(edit_url, deposit_id, creators, processed_metadata, access_token, api_type) do
+  defp zenodo_edit_publish_flow(
+         edit_url,
+         deposit_id,
+         creators,
+         processed_metadata,
+         access_token,
+         api_type
+       ) do
     debug({edit_url, deposit_id}, "Starting zenodo_edit_publish_flow")
-    
+
     # Step 1: POST to edit URL to make deposit editable
     with {:ok, %{status: status}} when status in 200..299 <-
            Req.post(edit_url,
@@ -277,19 +335,24 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
                {"Authorization", "Bearer #{access_token}"}
              ]
            ) do
-      
       debug("Successfully unlocked deposit for editing")
-      
+
       # Step 2: Update the metadata
-      case Bonfire.OpenScience.Zenodo.update_deposit_metadata(deposit_id, creators, processed_metadata, access_token, api_type) do
+      case Bonfire.OpenScience.Zenodo.update_deposit_metadata(
+             deposit_id,
+             creators,
+             processed_metadata,
+             access_token,
+             api_type
+           ) do
         {:ok, updated_result} ->
           debug("Metadata updated successfully")
-          
+
           # For this specific use case (ORCID addition), the metadata update is sufficient
           # The publish step causes issues with managed DOI prefixes in sandbox
           debug("Skipping republish for ORCID metadata update - metadata change is sufficient")
           {:ok, updated_result}
-        
+
         {:error, update_reason} ->
           error(update_reason, "Failed to update metadata after unlocking")
           {:error, "Failed to update metadata: #{inspect(update_reason)}"}
@@ -298,7 +361,7 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
       {:ok, %{status: status, body: body}} ->
         error({status, body}, "Failed to unlock deposit for editing")
         {:error, "Failed to unlock deposit for editing: HTTP #{status}"}
-      
+
       {:error, reason} ->
         error(reason, "HTTP request failed when unlocking deposit")
         {:error, "Failed to unlock deposit: #{inspect(reason)}"}
@@ -308,20 +371,19 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
   # Ensure DOI fields have the correct full format
   defp ensure_correct_doi_format(metadata, full_doi) when is_binary(full_doi) do
     # Extract just the DOI identifier from the full URL (e.g., "10.5072/zenodo.318716")
-    doi_identifier = case full_doi do
-      "https://doi.org/" <> doi -> doi
-      "http://doi.org/" <> doi -> doi
-      doi -> doi
-    end
-    
+    doi_identifier =
+      case full_doi do
+        "https://doi.org/" <> doi -> doi
+        "http://doi.org/" <> doi -> doi
+        doi -> doi
+      end
+
     debug({doi_identifier, full_doi}, "Setting DOI in metadata")
-    
+
     metadata
     |> Map.put("doi", doi_identifier)
     |> Map.put("doi_url", full_doi)
   end
-  
+
   defp ensure_correct_doi_format(metadata, _), do: metadata
-
-
 end

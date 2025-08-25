@@ -37,7 +37,8 @@ defmodule Bonfire.OpenScience.DOICoauthorNotifications do
            ) do
         participants when is_list(participants) and participants != [] ->
           # Filter participants without ORCID
-          recipients_without_orcid = filter_participants_without_orcid(participants, creators, current_user)
+          recipients_without_orcid =
+            filter_participants_without_orcid(participants, creators, current_user)
 
           debug("Found #{length(recipients_without_orcid)} participants without ORCID to notify")
 
@@ -65,7 +66,8 @@ defmodule Bonfire.OpenScience.DOICoauthorNotifications do
   """
   defp filter_participants_without_orcid(participants, creators, current_user) do
     # Get list of creator IDs that already have ORCID
-    creators_with_orcid = creators
+    creators_with_orcid =
+      creators
       |> Enum.filter(fn c -> c["orcid"] && c["orcid"] != "" end)
       |> Enum.map(fn c -> c["id"] end)
       |> MapSet.new()
@@ -80,7 +82,9 @@ defmodule Bonfire.OpenScience.DOICoauthorNotifications do
       exclude_current = participant_id == id(current_user)
       exclude_has_orcid = MapSet.member?(creators_with_orcid, participant_id)
 
-      debug("Participant #{participant_id}: exclude_current=#{exclude_current}, exclude_has_orcid=#{exclude_has_orcid}")
+      debug(
+        "Participant #{participant_id}: exclude_current=#{exclude_current}, exclude_has_orcid=#{exclude_has_orcid}"
+      )
 
       exclude_current || exclude_has_orcid
     end)
@@ -93,6 +97,7 @@ defmodule Bonfire.OpenScience.DOICoauthorNotifications do
     title = e(post, :post_content, :name, nil) || "Untitled"
     sender_name = e(sender, :profile, :name, nil) || e(sender, :character, :username, "someone")
     instance_url = Bonfire.Common.URIs.base_uri() |> to_string()
+
     message_content = """
     Hi! This is an automatic message sent in behalf of #{sender_name}.
     #{sender_name} has just published the discussion "#{title}" on Zenodo with DOI: #{doi}
@@ -108,11 +113,15 @@ defmodule Bonfire.OpenScience.DOICoauthorNotifications do
 
     debug("Sending DM notification to #{id(recipient)} about DOI: #{doi}")
 
-    case Messages.send(sender, %{
-           post_content: %{
-             html_body: message_content
-           }
-         }, [id(recipient)]) do
+    case Messages.send(
+           sender,
+           %{
+             post_content: %{
+               html_body: message_content
+             }
+           },
+           [id(recipient)]
+         ) do
       {:ok, _message} ->
         debug("Successfully sent DOI notification DM to #{id(recipient)}")
         :ok
