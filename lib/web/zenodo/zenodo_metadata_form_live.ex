@@ -1048,8 +1048,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
                 creators
               )
             end
-
-          debug(orcid_result, "ORCID publishing result")
+            |> debug("ORCID publishing result")
 
           # Send DM notifications to co-authors without ORCID
           spawn(fn ->
