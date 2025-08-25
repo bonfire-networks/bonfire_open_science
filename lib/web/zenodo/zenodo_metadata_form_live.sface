@@ -1,66 +1,112 @@
 <div class="zenodo-metadata-form mt-4">
-  <Form for={:metadata} id="metadata" submit="submit" change="validate" class="flex flex-col gap-4">
-    {!-- ORCID Publishing Option --}
-    <div class="form-control p-4 bg-base-content/5 rounded-lg">
-      <label class="label cursor-pointer justify-start gap-3">
-        <input
-          type="checkbox"
-          name="add_to_orcid"
-          class="checkbox checkbox-primary"
-          checked={@add_to_orcid}
-          disabled={not @has_orcid_token}
-          phx-change="validate"
-          phx-target={@myself}
-        />
-        <div class="flex flex-col">
-          <span class="font-medium">{l("Add to my ORCID profile")}</span>
-          {#if @has_orcid_token}
-            <span class="badge badge-xs badge-success">{l("ORCID connected")}</span>
-          {#else}
-            <span class="badge badge-xs badge-warning">
-              {l("Connect your ORCID profile to enable this option")}
-            </span>
-          {/if}
-        </div>
-      </label>
+  {#if @mode == :edit_metadata}
+    <div class="mb-4 p-4 bg-base-200 rounded-lg border-dashed border border-base-content/20">
+      <h3 class="font-medium text-base-content">{l("Editing metadata for existing deposit")}</h3>
+      {#if @zenodo_info && @zenodo_info.doi}
+        <p class="text-sm text-base-content opacity-70 mt-2">
+          {l("Current DOI: %{doi}", doi: @zenodo_info.doi)}
+        </p>
+      {/if}
     </div>
+  {#elseif @mode == :new_version}
+    <div class="mb-4 p-4 bg-info rounded-lg">
+      <h3 class="font-medium text-info-content">{l("Creating new version")}</h3>
+      <p class="text-sm text-info-content opacity-70 mt-2">
+        {l("This will create a new version of your published deposit with updated content and metadata.")}
+      </p>
+      {#if @zenodo_info && @zenodo_info.doi}
+        <p class="text-sm text-info-content opacity-70 mt-1">
+          {l("Current DOI: %{doi}", doi: @zenodo_info.doi)}
+        </p>
+      {/if}
+    </div>
+  {/if}
+
+  <Form for={:metadata} id="metadata" submit="submit" change="validate" class="flex flex-col gap-4">
+    {#if @mode in [:create, :new_version, :edit_metadata]}
+      {!-- ORCID Publishing Option --}
+      <div class="form-control p-4 bg-base-content/5 rounded-lg">
+        <label class="label cursor-pointer justify-start gap-3">
+          <input
+            type="checkbox"
+            name="add_to_orcid"
+            class="checkbox checkbox-primary"
+            checked={@add_to_orcid}
+            disabled={not @has_orcid_token}
+            phx-change="validate"
+            phx-target={@myself}
+          />
+          <div class="flex flex-col">
+            <span class="font-medium">
+              {#if @mode == :edit_metadata}
+                {l("Update this work in your ORCID profile")}
+              {#elseif @mode == :new_version}
+                {l("Add new version to your ORCID profile")}
+              {#else}
+                {l("Add to my ORCID profile")}
+              {/if}
+            </span>
+            {#if @has_orcid_token}
+              <span class="badge badge-xs badge-success">{l("ORCID connected")}</span>
+            {#else}
+              <span class="badge badge-xs badge-warning">
+                {l("Connect your ORCID profile to enable this option")}
+              </span>
+            {/if}
+          </div>
+        </label>
+      </div>
+    {/if}
 
     {!-- Upload Type --}
-    <label class="input w-full">
-      <span class="label">{l("Upload type")}</span>
-      <select name="metadata[upload_type]" class="w-full" phx-change="validate" phx-target={@myself}>
-        {#for {label, value} <- upload_type_options()}
-          <option value={value} selected={@metadata["upload_type"] == value}>
-            {label}
-          </option>
-        {/for}
-      </select>
+    <div>
+      <label class="input w-full">
+        <span class="label">{l("Upload type")}</span>
+        <select 
+          name="metadata[upload_type]" 
+          class="w-full" 
+          phx-change="validate" 
+          phx-target={@myself}
+        >
+          {#for {label, value} <- upload_type_options()}
+            <option value={value} selected={@current_metadata["upload_type"] == value}>
+              {label}
+            </option>
+          {/for}
+        </select>
+      </label>
       {#if Map.has_key?(@errors, :upload_type)}
         <span class="text-error text-sm">{@errors.upload_type}</span>
       {/if}
-    </label>
-
-    {!-- Include Comments Toggle --}
-    <div class="form-control">
-      <label class="label gap-3 cursor-pointer">
-        <input
-          type="checkbox"
-          name="include_comments"
-          checked={@include_comments}
-          phx-click="toggle_include_comments"
-          phx-target={@myself}
-          class="toggle toggle-primary toggle-sm"
-        />
-        <span class="label-text">
-          <span class="text-base-content">{l("Include thread comments")}</span>
-        </span>
-      </label>
     </div>
+
+    {#if @mode in [:create, :new_version]}
+      {!-- Include Comments Toggle --}
+      <div class="form-control">
+        <label class="label gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            name="include_comments"
+            checked={@include_comments}
+            phx-click="toggle_include_comments"
+            phx-target={@myself}
+            class="toggle toggle-primary toggle-sm"
+          />
+          <span class="label-text">
+            {#if @mode == :new_version}
+              <span class="text-base-content">{l("Include updated thread comments")}</span>
+            {#else}
+              <span class="text-base-content">{l("Include thread comments")}</span>
+            {/if}
+          </span>
+        </label>
+      </div>
+    {/if}
 
     {!-- Title --}
     <label class="input w-full">
       <span class="label">{l("Title")}</span>
-      <TextInput field={:title} value={@metadata["title"]} class="w-full" opts={maxlength: "500"} />
+      <TextInput field={:title} value={@current_metadata["title"]} class="w-full" opts={maxlength: "500"} />
       {#if Map.has_key?(@errors, :title)}
         <span class="text-error text-sm">{@errors.title}</span>
       {/if}
@@ -86,6 +132,7 @@
             />
             <input
               type="text"
+              disabled
               name={"creators[#{index}][orcid]"}
               value={creator["orcid"]}
               placeholder="0000-0000-0000-0000"
@@ -93,6 +140,7 @@
               id={"creator-#{index}-orcid"}
             />
             <input
+              disabled
               type="text"
               name={"creators[#{index}][affiliation]"}
               value={creator["affiliation"]}
@@ -108,7 +156,7 @@
                   transition: {"ease-out duration-200", "opacity-100", "opacity-0"}
                 )
                 |> JS.push("remove_creator", value: %{index: index}, target: @myself)}
-                class="btn btn-danger btn-square btn-sm"
+                class="btn btn-error btn-square btn-sm"
               >
                 <Iconify.iconify icon="carbon:close" class="w-4 h-4" />
               </button>
@@ -140,7 +188,7 @@
       <legend class="fieldset-legend">{l("Abstract / Description / Main Content")} *</legend>
       <TextArea
         field={:description}
-        value={@metadata["description"]}
+        value={@current_metadata["description"]}
         rows="4"
         class="textarea w-full"
       />
@@ -172,14 +220,19 @@
     {/if}
 
     {!-- Publication Date --}
-
-    <label class="input w-full">
-      <span class="label">{l("Publication Date")} *</span>
-      <DateInput field={:publication_date} value={@metadata["publication_date"]} class="w-full" />
-      {#if Map.has_key?(@errors, :publication_date)}
-        <span class="text-error text-sm">{@errors.publication_date}</span>
-      {/if}
-    </label>
+    <div>
+      <label class="input w-full">
+        <span class="label">{l("Publication Date")} *</span>
+        <DateInput 
+          field={:publication_date} 
+          value={@current_metadata["publication_date"]} 
+          class="w-full"
+        />
+      </label>
+        {#if Map.has_key?(@errors, :publication_date)}
+          <span class="text-error text-sm">{@errors.publication_date}</span>
+        {/if}
+    </div>
 
     {!-- Access Rights --}
     <fieldset class="fieldset mb-0 w-full">
@@ -191,7 +244,7 @@
               type="radio"
               name="metadata[access_right]"
               value={value}
-              checked={@metadata["access_right"] == value}
+              checked={@current_metadata["access_right"] == value}
               phx-change="validate"
               phx-target={@myself}
               class="radio radio-sm radio-primary"
@@ -208,24 +261,29 @@
     {!-- License (conditional) --}
     <fieldset
       class="fieldset mb-0 w-full"
-      style={if @metadata["access_right"] not in ["open", "embargoed"], do: "display: none", else: ""}
+      style={if @current_metadata["access_right"] != "open", do: "display: none", else: ""}
     >
       <label class="input w-full">
         <span class="label">{l("License")}</span>
-        <select name="metadata[license]" class="w-full" phx-change="validate" phx-target={@myself}>
+        <select 
+          name="metadata[license]" 
+          class="w-full" 
+          phx-change="validate" 
+          phx-target={@myself}
+        >
           {#for {label, value} <- license_options()}
-            <option value={value} selected={@metadata["license"] == value}>
+            <option value={value} selected={@current_metadata["license"] == value}>
               {label}
             </option>
           {/for}
         </select>
-        {#if Map.has_key?(@errors, :license)}
-          <span class="text-error text-sm">{@errors.license}</span>
-        {/if}
       </label>
       <a href="https://choosealicense.com" target="_blank" class="link link-primary text-sm">
         {l("Help choosing a license")}
       </a>
+      {#if Map.has_key?(@errors, :license)}
+        <span class="text-error text-sm">{@errors.license}</span>
+      {/if}
     </fieldset>
 
     {!-- Keywords --}
@@ -233,9 +291,9 @@
       <span class="label">{l("Keywords")}</span>
       <TextInput
         field={:keywords}
-        value={@metadata["keywords"]}
+        value={@current_metadata["keywords"]}
         opts={placeholder: l("keyword1, keyword2, keyword3")}
-        class="input input-bordered w-full"
+        class=""
       />
     </label>
 
@@ -247,9 +305,21 @@
       <button type="submit" class={"btn btn-primary", loading: @submitting} disabled={@submitting}>
         {#if @submitting}
           <span class="loading loading-spinner" />
-          {l("Creating DOI...")}
+          {#if @mode == :edit_metadata}
+            {l("Updating...")}
+          {#elseif @mode == :new_version}
+            {l("Creating new version...")}
+          {#else}
+            {l("Creating DOI...")}
+          {/if}
         {#else}
-          {l("Create DOI")}
+          {#if @mode == :edit_metadata}
+            {l("Update Metadata")}
+          {#elseif @mode == :new_version}
+            {l("Create New Version")}
+          {#else}
+            {l("Create DOI")}
+          {/if}
         {/if}
       </button>
     </div>

@@ -1,24 +1,112 @@
+<li class="m-1 border-t border-base-content/10" />
 {#case Bonfire.OpenScience.Zenodo.get_user_api_type(current_user(@__context__))}
   {#match nil}
   {#match api_type}
-    <Bonfire.UI.Common.OpenModalLive
-      id={"zenodo-doi-modal-#{@parent_id}"}
-      title_text={l("Create DOI with %{api_type}", api_type: api_type)}
-      open_btn_text={l("Create DOI with %{api_type}", api_type: api_type)}
-      modal_class="zenodo-modal"
-    >
-      <:open_btn>
-        <div class="text-left">
-          <!-- <Iconify.iconify icon="carbon:cloud-upload" class="w-4 h-4" /> -->
-          <span>{l("Archive on %{api_type}", api_type: api_type)}</span>
-        </div>
-      </:open_btn>
+    {#if Bonfire.OpenScience.Zenodo.has_zenodo_archive?(@activity || @post)}
+      {#case Bonfire.OpenScience.Zenodo.get_thread_zenodo_media(@activity || @post)}
+        {#match {:ok, media, metadata}}
+          {#case Bonfire.OpenScience.Zenodo.extract_zenodo_info(metadata)}
+            {#match zenodo_info}
+              <!-- Show both edit metadata and create new version options -->
+              
+              <li>
+                <Bonfire.UI.Common.OpenModalLive
+                  id={"zenodo-version-modal-#{@parent_id}"}
+                  title_text={l("Create New %{api_type} Version", api_type: api_type)}
+                  open_btn_text={l("Create new version")}
+                  modal_class="zenodo-modal"
+                >
+                  <:open_btn>
+                    <div class="text-left">
+                      <span>{l("Create new version")}</span>
+                    </div>
+                  </:open_btn>
 
-      <Bonfire.OpenScience.ZenodoMetadataFormLive
-        api_type={api_type}
-        post={@post}
-        participants={@participants}
-        id={"zenodo-metadata-form-#{@parent_id}"}
-      />
-    </Bonfire.UI.Common.OpenModalLive>
+                  <Bonfire.OpenScience.ZenodoMetadataFormLive
+                    api_type={api_type}
+                    post={@post}
+                    participants={@participants}
+                    zenodo_info={zenodo_info}
+                    metadata={metadata}
+                    mode={:new_version}
+                    id={"zenodo-metadata-form-version-#{@parent_id}"}
+                  />
+                </Bonfire.UI.Common.OpenModalLive>
+              </li>
+              
+              <li>
+                <Bonfire.UI.Common.OpenModalLive
+                  id={"zenodo-edit-modal-#{@parent_id}"}
+                  title_text={l("Edit %{api_type} Metadata", api_type: api_type)}
+                  open_btn_text={l("Edit metadata")}
+                  modal_class="zenodo-modal"
+                >
+                  <:open_btn>
+                    <div class="text-left">
+                      <span>{l("Edit metadata")}</span>
+                    </div>
+                  </:open_btn>
+
+                  <Bonfire.OpenScience.ZenodoMetadataFormLive
+                    api_type={api_type}
+                    post={@post}
+                    participants={@participants}
+                    zenodo_info={zenodo_info}
+                    metadata={metadata}
+                    media={media}
+                    mode={:edit_metadata}
+                    id={"zenodo-metadata-form-edit-#{@parent_id}"}
+                  />
+                </Bonfire.UI.Common.OpenModalLive>
+              </li>
+          {/case}
+        {#match _}
+        <li>
+          <!-- Error getting metadata - fallback to create -->
+          <Bonfire.UI.Common.OpenModalLive
+            id={"zenodo-doi-modal-#{@parent_id}"}
+            title_text={l("Create DOI with %{api_type}", api_type: api_type)}
+            open_btn_text={l("Create DOI with %{api_type}", api_type: api_type)}
+            modal_class="zenodo-modal"
+          >
+            <:open_btn>
+              <div class="text-left">
+                <span>{l("Archive on %{api_type}", api_type: api_type)}</span>
+              </div>
+            </:open_btn>
+
+            <Bonfire.OpenScience.ZenodoMetadataFormLive
+              api_type={api_type}
+              post={@post}
+              participants={@participants}
+              id={"zenodo-metadata-form-#{@parent_id}"}
+            />
+          </Bonfire.UI.Common.OpenModalLive>
+          </li>
+      {/case}
+    {#else}
+    <li>
+      <!-- No archive exists - show create option -->
+      <Bonfire.UI.Common.OpenModalLive
+        id={"zenodo-doi-modal-#{@parent_id}"}
+        title_text={l("Create DOI with %{api_type}", api_type: api_type)}
+        open_btn_text={l("Create DOI with %{api_type}", api_type: api_type)}
+        modal_class="zenodo-modal"
+      >
+        <:open_btn>
+          <div class="text-left">
+            <span>{l("Archive on %{api_type}", api_type: api_type)}</span>
+          </div>
+        </:open_btn>
+
+        <Bonfire.OpenScience.ZenodoMetadataFormLive
+          api_type={api_type}
+          post={@post}
+          participants={@participants}
+          id={"zenodo-metadata-form-#{@parent_id}"}
+        />
+      </Bonfire.UI.Common.OpenModalLive>
+      </li>
+    {/if}
 {/case}
+<li class="m-1 border-t border-base-content/10" />

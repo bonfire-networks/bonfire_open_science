@@ -1,0 +1,143 @@
+<div class="max-w-4xl mx-auto">
+  
+  <!-- Loading State -->
+  <div :if={@loading} class="flex justify-center items-center py-12">
+    <span class="loading loading-spinner loading-lg"></span>
+    <span class="ml-3 text-base-content/70">{l("Loading publication...")}</span>
+  </div>
+
+  <!-- Error State -->
+  <div :if={@error && !@loading} class="alert alert-error">
+    <#Icon iconify="heroicons-solid:exclamation-triangle" class="w-5 h-5" />
+    <span>{@error}</span>
+  </div>
+
+  <!-- Main Content -->
+  <div :if={@activity && @object && !@loading && !@error} class="space-y-6">
+    
+    <!-- Publication Preview using ActivityLive -->
+    
+
+    <!-- ORCID Form Section -->
+    <div class="">
+      <div class="">
+        <!-- Single consolidated ORCID information box -->
+        <div class="card bg-info/20 border border-base-content/10 m-3">
+          <div class="card-body p-3">
+            <div class="flex items-start gap-4">
+              <div class="w-12 h-12 bg-success/10 rounded-full flex items-center justify-center flex-shrink-0">
+                <#Icon iconify="academicons:orcid" class="w-6 h-6 text-success" />
+              </div>
+              <div class="flex-1">
+                <h3 class="font-semibold text-lg mb-3">{l("Add Your ORCID iD for Proper Attribution")}</h3>
+                
+                <div class="space-y-4 text-sm">
+                  <div>
+                    <h4 class="font-medium text-base-content mb-1">{l("What you need to do:")}</h4>
+                    <p class="text-base-content/80">{l("- Fill the form with your ORCID iD (format: XXXX-XXXX-XXXX-XXXX)")}</p>
+                    <p class="text-base-content/80">{l("- Or authenticate with your ORCID credential to automatically submit it")}</p>
+                  </div>
+                  
+                  <div>
+                    <h4 class="font-medium text-base-content mb-1">{l("Why this matters:")}</h4>
+                    <p class="text-base-content/80">{l("Your ORCID ensures you get proper credit as a co-author in the publication metadata")}</p>
+                  </div>
+                  
+                  <div>
+                    <h4 class="font-medium text-base-content mb-1">{l("What happens next:")}</h4>
+                    <p class="text-base-content/80">{l("Your ORCID will be added to the publication metadata and you'll be properly credited as a researcher")}</p>
+                  </div>
+                  
+                  <div class="pt-2 border-t border-base-content/10">
+                    <a href="https://orcid.org/about" target="_blank" class="link link-primary text-sm">
+                      {l("Learn more about ORCID")} <#Icon iconify="heroicons-solid:external-link" class="w-3 h-3 inline" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="m-3 rounded-lg border border-base-content/10">
+            <div class="p-3 border-b border-base-content/10 font-semibold">{l("Publication:")}</div>
+            <StatefulComponent 
+                module={Bonfire.UI.Social.ActivityLive}
+                id="orcid_publication_preview"
+                activity={@activity}
+                object={@object}
+                showing_within={:orcid_link}
+                hide_actions={true}
+                hide_reply={true}
+            />
+            
+            <!-- Navigation to discussion -->
+            <!-- <div class="mt-4 pt-3 border-t border-base-content/10">
+              <a href={path(@object)} class="btn btn-outline btn-sm">
+                <#Icon iconify="heroicons-solid:chat-bubble-left-right" class="w-4 h-4" />
+                {l("View Full Discussion")}
+              </a>
+            </div> -->
+        </div>
+
+        <!-- ORCID Submission Form -->
+        <div class="card bg-base-100 shadow-sm border border-base-content/10 m-3">
+          <div class="card-body p-6">
+            <h3 class="font-semibold text-lg mb-4 flex items-center gap-2">
+              <#Icon iconify="academicons:orcid" class="w-5 h-5 text-success" />
+              {l("Submit Your ORCID iD")}
+            </h3>
+            
+            <!-- Manual ORCID Input -->
+            <div class="space-y-4">
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">{l("Enter your ORCID iD manually:")}</span>
+                </label>
+                <form phx-submit="submit_orcid" class="flex gap-3">
+                  <div class="flex-1">
+                    <input 
+                      type="text" 
+                      name="orcid_id"
+                      placeholder="0000-0000-0000-0000"
+                      pattern="\d{4}-\d{4}-\d{4}-\d{3}[\dX]"
+                      class="input input-bordered w-full"
+                      required
+                    />
+                    <div class="label">
+                      <span class="label-text-alt text-base-content/60">{l("Format: XXXX-XXXX-XXXX-XXXX")}</span>
+                    </div>
+                  </div>
+                  <button type="submit" class="btn btn-primary">
+                    <#Icon iconify="heroicons-solid:check" class="w-4 h-4" />
+                    {l("Submit")}
+                  </button>
+                </form>
+              </div>
+              
+              <!-- Divider -->
+              <div class="divider text-sm text-base-content/60">{l("or")}</div>
+              
+              <!-- ORCID OAuth Sign-in -->
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">{l("Sign in with your ORCID account:")}</span>
+                </label>
+                <StatelessComponent
+                  module={Bonfire.OpenID.Web.SignInWithExternalProvidersLive}
+                  source={:orcid_link}
+                  label={l("Authenticate with ORCID to automatically submit your iD")}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Temporary Instructions -->
+        
+
+      </div>
+    </div>
+
+  </div>
+</div>

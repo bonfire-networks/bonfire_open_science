@@ -1,0 +1,284 @@
+<div class="p-6 space-y-6">
+  {#if @mode == :edit_metadata}
+    <div class="mb-4 p-4 bg-base-200 rounded-lg">
+      <h3 class="font-medium text-base-content">{l("Editing metadata for existing deposit")}</h3>
+      {#if @zenodo_info.doi}
+        <p class="text-sm text-base-content opacity-70 mt-2">
+          {l("Current DOI: %{doi}", doi: @zenodo_info.doi)}
+        </p>
+      {/if}
+    </div>
+  {#elseif @mode == :new_version}
+    <div class="mb-4 p-4 bg-info rounded-lg">
+      <h3 class="font-medium text-info-content">{l("Creating new version")}</h3>
+      <p class="text-sm text-info-content opacity-70 mt-2">
+        {l("This will create a new version of your published deposit with updated content and metadata.")}
+      </p>
+      {#if @zenodo_info.doi}
+        <p class="text-sm text-info-content opacity-70 mt-1">
+          {l("Current DOI: %{doi}", doi: @zenodo_info.doi)}
+        </p>
+      {/if}
+    </div>
+  {/if}
+
+  <form phx-change="validate" phx-submit="submit" phx-target={@myself}>
+    <div class="space-y-4">
+      <!-- Title -->
+      <div class="form-control">
+        <label class="label">
+          <span class="label-text">{l("Title")} *</span>
+        </label>
+        <input
+          type="text"
+          name="metadata[title]"
+          value={@current_metadata["title"]}
+          class={
+            "input input-bordered w-full",
+            "input-error": @errors[:title]
+          }
+          placeholder={l("Enter the title of your work")}
+          required
+        />
+        {#if @errors[:title]}
+          <label class="label">
+            <span class="label-text-alt text-error">{@errors[:title]}</span>
+          </label>
+        {/if}
+      </div>
+
+      <!-- Description -->
+      <div class="form-control">
+        <label class="label">
+          <span class="label-text">{l("Description")} *</span>
+        </label>
+        <textarea
+          name="metadata[description]"
+          class={
+            "textarea textarea-bordered w-full h-32",
+            "textarea-error": @errors[:description]
+          }
+          placeholder={l("Provide a detailed description of your work")}
+          required
+        >{@current_metadata["description"]}</textarea>
+        {#if @errors[:description]}
+          <label class="label">
+            <span class="label-text-alt text-error">{@errors[:description]}</span>
+          </label>
+        {/if}
+      </div>
+
+      <!-- Upload Type -->
+      <div class="form-control">
+        <label class="label">
+          <span class="label-text">{l("Upload Type")}</span>
+        </label>
+        <select name="metadata[upload_type]" class="select select-bordered w-full">
+          {#for {label, value} <- upload_type_options()}
+            <option value={value} selected={@current_metadata["upload_type"] == value}>
+              {label}
+            </option>
+          {/for}
+        </select>
+      </div>
+
+      <!-- Publication Date -->
+      <div class="form-control">
+        <label class="label">
+          <span class="label-text">{l("Publication Date")}</span>
+        </label>
+        <input
+          type="date"
+          name="metadata[publication_date]"
+          value={@current_metadata["publication_date"]}
+          class="input input-bordered w-full"
+        />
+      </div>
+
+      <!-- Keywords -->
+      <div class="form-control">
+        <label class="label">
+          <span class="label-text">{l("Keywords")}</span>
+        </label>
+        <input
+          type="text"
+          name="metadata[keywords]"
+          value={@current_metadata["keywords"]}
+          class="input input-bordered w-full"
+          placeholder={l("Enter keywords separated by commas")}
+        />
+      </div>
+
+      <!-- Access Rights -->
+      <div class="form-control">
+        <label class="label">
+          <span class="label-text">{l("Access Rights")}</span>
+        </label>
+        <select name="metadata[access_right]" class="select select-bordered w-full">
+          {#for {label, value} <- access_right_options()}
+            <option value={value} selected={@current_metadata["access_right"] == value}>
+              {label}
+            </option>
+          {/for}
+        </select>
+      </div>
+
+      <!-- License -->
+      {#if @current_metadata["access_right"] in ["open", "embargoed"]}
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text">{l("License")} *</span>
+          </label>
+          <select
+            name="metadata[license]"
+            class={
+              "select select-bordered w-full",
+              "select-error": @errors[:license]
+            }
+            required
+          >
+            <option value="">{l("Select a license")}</option>
+            {#for {label, value} <- license_options()}
+              <option value={value} selected={@current_metadata["license"] == value}>
+                {label}
+              </option>
+            {/for}
+          </select>
+          {#if @errors[:license]}
+            <label class="label">
+              <span class="label-text-alt text-error">{@errors[:license]}</span>
+            </label>
+          {/if}
+        </div>
+      {/if}
+
+      <!-- Authors/Creators Section -->
+      <div class="divider">{l("Authors")}</div>
+
+      {#if @errors[:creators]}
+        <div class="alert alert-error">
+          <span>{@errors[:creators]}</span>
+        </div>
+      {/if}
+
+      <div class="space-y-3">
+        {#for {creator, index} <- Enum.with_index(@creators)}
+          {#unless Map.get(creator, "_hidden", false)}
+            <div class="card bg-base-100 border border-base-300">
+              <div class="card-body p-4">
+                <div class="flex justify-between items-start mb-3">
+                  <h4 class="font-medium">
+                    {l("Author")} #{index + 1}
+                    {#if index == 0}
+                      <span class="text-xs text-base-content opacity-60">({l("Primary")})</span>
+                    {/if}
+                  </h4>
+                  {#if index > 0}
+                    <button
+                      type="button"
+                      phx-click="remove_creator"
+                      phx-value-index={index}
+                      phx-target={@myself}
+                      class="btn btn-ghost btn-xs text-error"
+                    >
+                      {l("Remove")}
+                    </button>
+                  {/if}
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div class="form-control">
+                    <label class="label">
+                      <span class="label-text">{l("Name")} *</span>
+                    </label>
+                    <input
+                      type="text"
+                      name={"creators[#{index}][name]"}
+                      value={creator["name"]}
+                      class="input input-bordered input-sm"
+                      placeholder={l("Full name")}
+                      required
+                    />
+                  </div>
+
+                  <div class="form-control">
+                    <label class="label">
+                      <span class="label-text">{l("ORCID ID")}</span>
+                    </label>
+                    <input
+                      type="text"
+                      name={"creators[#{index}][orcid]"}
+                      value={creator["orcid"]}
+                      class="input input-bordered input-sm"
+                      placeholder="0000-0000-0000-0000"
+                    />
+                  </div>
+
+                  <div class="form-control">
+                    <label class="label">
+                      <span class="label-text">{l("Affiliation")}</span>
+                    </label>
+                    <input
+                      type="text"
+                      name={"creators[#{index}][affiliation]"}
+                      value={creator["affiliation"]}
+                      class="input input-bordered input-sm"
+                      placeholder={l("Institution or organization")}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          {/unless}
+        {/for}
+
+        <button type="submit" name="action" value="add_creator" class="btn btn-outline btn-sm">
+          {l("Add Author")}
+        </button>
+      </div>
+
+      <!-- ORCID Integration -->
+      {#if @has_orcid_token}
+        <div class="divider">{l("ORCID Integration")}</div>
+        <div class="form-control">
+          <label class="label cursor-pointer justify-start gap-3">
+            <input
+              type="checkbox"
+              name="add_to_orcid"
+              checked={@add_to_orcid}
+              class="checkbox checkbox-primary"
+            />
+            <span class="label-text">
+              {#if @mode == :edit_metadata}
+                {l("Update this work in your ORCID profile")}
+              {#else}
+                {l("Add new version to your ORCID profile")}
+              {/if}
+            </span>
+          </label>
+        </div>
+      {/if}
+    </div>
+
+    <!-- Submit Button -->
+    <div class="modal-action sticky bottom-0 bg-base-200 border-t border-base-content/10 p-3 -mx-4 z-50">
+      <button
+        type="submit"
+        class={
+          "btn btn-primary",
+          loading: @submitting
+        }
+        disabled={@submitting}
+      >
+        {#if @submitting}
+          <span class="loading loading-spinner" />
+          {l("Processing...")}
+        {#elseif @mode == :edit_metadata}
+          {l("Update Metadata")}
+        {#else}
+          {l("Create New Version")}
+        {/if}
+      </button>
+    </div>
+  </form>
+</div>

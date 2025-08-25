@@ -35,9 +35,9 @@ defmodule Bonfire.OpenScience.Zenodo do
   - user: The user to get the token for
 
   ## Returns
-  {:ok, access_token} on success, {:error, reason} on failure
+  {:ok, access_token, api_type} on success, {:error, reason} on failure
   """
-  defp get_user_zenodo_token(user) do
+  def get_user_zenodo_token(user) do
     case OpenScience.user_alias_by_type(user, "zenodo") do
       nil ->
         if token = System.get_env("INVENIO_RDM_PERSONAL_TOKEN") do
@@ -85,7 +85,6 @@ defmodule Bonfire.OpenScience.Zenodo do
          {:ok, file_infos} <-
            upload_files(bucket_url || deposit_id, files, access_token, api_type, opts),
          result = %{deposit: deposit, files: file_infos} do
-
       # return the draft and/or published record
       {:ok, Map.put(result, :published, maybe_publish(deposit_id, access_token, api_type, opts))}
 
@@ -124,7 +123,7 @@ defmodule Bonfire.OpenScience.Zenodo do
   ## Parameters
   - metadata: Map containing deposit metadata (title, upload_type, description, creators, etc.)
   - access_token: Zenodo API access token
-  - opts: Additional options 
+  - opts: Additional options
 
   ## Returns
   {:ok, deposit} on success, {:error, reason} on failure
@@ -133,70 +132,7 @@ defmodule Bonfire.OpenScience.Zenodo do
     url = build_url(:deposit, access_token, api_type, opts)
     debug(url, "Zenodo API URL")
 
-    payload =
-      if api_type == :invenio do
-        # massage data for the slightly more strict API
-        %{
-          "metadata" =>
-            metadata
-            |> Map.put_new("resource_type", %{"id" => "dataset"})
-            |> Map.put_new("publisher", "Open Science Network")
-            |> Map.put(
-              "creators",
-              creators
-              |> Enum.map(fn creator ->
-                person_or_org = %{
-                  "given_name" => creator["given_name"],
-                  "family_name" => creator["family_name"] || creator["name"],
-                  "type" => "personal",
-                  "name" =>
-                    creator["name"] || "#{creator["given_name"]} #{creator["family_name"]}"
-                }
-
-                person_or_org =
-                  case creator["orcid"] do
-                    orcid when is_binary(orcid) and orcid != "" ->
-                      Map.put(person_or_org, "identifiers", [
-                        %{"identifier" => orcid, "scheme" => "orcid"}
-                      ])
-
-                    _ ->
-                      person_or_org
-                  end
-
-                affiliations =
-                  case creator["affiliations"] || creator["affiliation"] do
-                    affs when is_list(affs) ->
-                      affs
-                      |> Enum.map(fn
-                        a when is_map(a) -> a["name"]
-                        a -> a
-                      end)
-                      |> Enum.filter(&(&1 && &1 != ""))
-                      |> Enum.map(&%{"name" => &1})
-
-                    %{"name" => name} = aff when is_binary(name) and name != "" ->
-                      [aff]
-
-                    aff when is_binary(aff) and aff != "" ->
-                      [%{"name" => aff}]
-
-                    _ ->
-                      []
-                  end
-
-                if affiliations != [] do
-                  %{"person_or_org" => person_or_org, "affiliations" => affiliations}
-                else
-                  %{"person_or_org" => person_or_org}
-                end
-              end)
-            )
-        }
-      else
-        # zenodo
-        %{"metadata" => metadata |> Map.put("creators", creators)}
-      end
+    payload = format_payload_for_api(creators, metadata, api_type)
 
     debug(payload, "Zenodo API payload being sent")
 
@@ -214,12 +150,15 @@ defmodule Bonfire.OpenScience.Zenodo do
     else
       {:error, %Jason.EncodeError{} = e} ->
         error(e, "Failed to encode metadata as JSON")
+        {:error, "Failed to encode metadata as JSON"}
 
       {:ok, %{status: status, body: body}} ->
         error(body, "Zenodo API error: #{status}")
+        {:error, "Zenodo API error: #{status}"}
 
       {:error, reason} ->
         error(reason, "HTTP request failed")
+        {:error, reason}
     end
   end
 
@@ -265,9 +204,11 @@ defmodule Bonfire.OpenScience.Zenodo do
 
             {:ok, %{status: status, body: body}} ->
               error(body, "File upload to Zenodo failed: #{status}")
+              {:error, "File upload to Zenodo failed: #{status}"}
 
             {:error, reason} ->
               error(reason, "File upload to Zenodo failed")
+              {:error, "File upload to Zenodo failed"}
           end
 
         :invenio ->
@@ -308,20 +249,25 @@ defmodule Bonfire.OpenScience.Zenodo do
           else
             {:error, :enoent} ->
               error(file_input, "File to be uploaded not found")
+              {:error, :enoent}
 
             {:ok, %{status: status, body: body}} ->
               error(body, "File upload to Invenio failed: #{status}")
+              {:error, "File upload to Invenio failed: #{status}"}
 
             {:error, reason} ->
               error(reason, "File upload to Invenio failed")
+              {:error, reason}
           end
       end
     else
       {:error, :enoent} ->
         error(file_input, "File to be uploaded not found")
+        {:error, :enoent}
 
       {:error, reason} ->
         error(reason, "File upload failed")
+        {:error, reason}
     end
   end
 
@@ -331,7 +277,7 @@ defmodule Bonfire.OpenScience.Zenodo do
   ## Parameters
   - deposit_id: The ID of the deposit to publish
   - access_token: Zenodo API access token
-  - opts: Additional options 
+  - opts: Additional options
 
   ## Returns
   {:ok, published_record} on success, {:error, reason} on failure
@@ -352,9 +298,11 @@ defmodule Bonfire.OpenScience.Zenodo do
     else
       {:ok, %{status: status, body: body}} ->
         error(body, "Zenodo publish error: #{status}")
+        {:error, "Zenodo publish error: #{status}"}
 
       {:error, reason} ->
         error(reason, "Publish request failed")
+        {:error, reason}
     end
   end
 
@@ -364,7 +312,7 @@ defmodule Bonfire.OpenScience.Zenodo do
   ## Parameters
   - deposit_id: The ID of the deposit to retrieve
   - access_token: Zenodo API access token
-  - opts: Additional options 
+  - opts: Additional options
 
   ## Returns
   {:ok, deposit} on success, {:error, reason} on failure
@@ -383,13 +331,173 @@ defmodule Bonfire.OpenScience.Zenodo do
     else
       {:ok, %{status: status, body: body}} ->
         error(body, "Zenodo API error: #{status}")
+        {:error, "Zenodo API error: #{status}"}
 
       {:error, reason} ->
         error(reason, "HTTP request failed")
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Updates metadata for an existing unpublished deposit.
+
+  ## Parameters
+  - deposit_id: The ID of the deposit to update
+  - creators: List of creator maps
+  - metadata: Updated metadata map
+  - access_token: Zenodo API access token
+  - api_type: :zenodo or :invenio
+  - opts: Additional options
+
+  ## Returns
+  {:ok, updated_deposit} on success, {:error, reason} on failure
+  """
+  def update_deposit_metadata(
+        deposit_id,
+        creators,
+        metadata,
+        access_token,
+        api_type \\ :zenodo,
+        opts \\ []
+      ) do
+    url = build_url(:update_deposit, access_token, api_type, %{id: deposit_id})
+
+    payload = format_payload_for_api(creators, metadata, api_type)
+
+    with {:ok, %{body: body, status: status}} when status in 200..299 <-
+           Req.put(url,
+             json: payload,
+             headers: [
+               {"Accept", "application/json"},
+               {"Authorization", "Bearer #{access_token}"}
+             ],
+             receive_timeout: 60_000
+           ) do
+      {:ok, body}
+    else
+      {:error, %Jason.EncodeError{} = e} ->
+        error(e, "Failed to encode metadata as JSON")
+        {:error, "Failed to encode metadata as JSON"}
+
+      {:ok, %{status: status, body: body}} ->
+        error(body, "Zenodo API error: #{status}")
+        {:error, "Zenodo API error: #{status}"}
+
+      {:error, reason} ->
+        error(reason, "HTTP request failed")
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Creates a new version of a published deposit.
+
+  ## Parameters
+  - deposit_id: The ID of the published deposit to create a new version from
+  - access_token: Zenodo API access token
+  - api_type: :zenodo or :invenio
+  - opts: Additional options
+
+  ## Returns
+  {:ok, new_deposit} on success, {:error, reason} on failure
+  """
+  def create_new_version(deposit_id, access_token, api_type \\ :zenodo, opts \\ []) do
+    url = build_url(:new_version, access_token, api_type, %{id: deposit_id})
+
+    with {:ok, %{body: body, status: status}} when status in 200..299 <-
+           Req.post(url,
+             body: "",
+             headers: [
+               {"Accept", "application/json"},
+               {"Authorization", "Bearer #{access_token}"}
+             ],
+             receive_timeout: 60_000
+           ) do
+      {:ok, body}
+    else
+      {:ok, %{status: status, body: body}} ->
+        error(body, "Zenodo API error: #{status}")
+        {:error, "Zenodo API error: #{status}"}
+
+      {:error, reason} ->
+        error(reason, "HTTP request failed")
+        {:error, reason}
     end
   end
 
   # Private helper functions
+
+  @doc false
+  defp format_payload_for_api(creators, metadata, api_type) do
+    if api_type == :invenio do
+      # InvenioRDM format
+      %{
+        "metadata" =>
+          metadata
+          |> Map.put_new("resource_type", %{"id" => "dataset"})
+          |> Map.put_new("publisher", get_publisher_name())
+          |> Map.put("creators", format_creators_for_invenio(creators))
+      }
+    else
+      # Zenodo format
+      %{"metadata" => metadata |> Map.put("creators", creators)}
+    end
+  end
+
+  @doc false
+  defp format_creators_for_invenio(creators) do
+    creators
+    |> Enum.map(fn creator ->
+      person_or_org = %{
+        "given_name" => creator["given_name"],
+        "family_name" => creator["family_name"] || creator["name"],
+        "type" => "personal",
+        "name" =>
+          creator["name"] || "#{creator["given_name"]} #{creator["family_name"]}"
+      }
+
+      person_or_org =
+        case creator["orcid"] do
+          orcid when is_binary(orcid) and orcid != "" ->
+            Map.put(person_or_org, "identifiers", [
+              %{"identifier" => orcid, "scheme" => "orcid"}
+            ])
+
+          _ ->
+            person_or_org
+        end
+
+      affiliations = format_affiliations(creator["affiliations"] || creator["affiliation"])
+
+      if affiliations != [] do
+        %{"person_or_org" => person_or_org, "affiliations" => affiliations}
+      else
+        %{"person_or_org" => person_or_org}
+      end
+    end)
+  end
+
+  @doc false
+  defp format_affiliations(nil), do: []
+  defp format_affiliations([]), do: []
+  defp format_affiliations(affs) when is_list(affs) do
+    affs
+    |> Enum.map(fn
+      a when is_map(a) -> a["name"]
+      a -> a
+    end)
+    |> Enum.filter(&(&1 && &1 != ""))
+    |> Enum.map(&%{"name" => &1})
+  end
+  defp format_affiliations(%{"name" => name} = aff) when is_binary(name) and name != "", do: [aff]
+  defp format_affiliations(aff) when is_binary(aff) and aff != "", do: [%{"name" => aff}]
+  defp format_affiliations(_), do: []
+
+  @doc false
+  defp get_publisher_name do
+    Bonfire.Common.Config.get([:bonfire_open_science, :publisher_name], "Open Science Network")
+  end
 
   defp build_url(path_type, access_token, api_type, params \\ %{}) do
     case {api_type, path_type} do
@@ -401,6 +509,12 @@ defmodule Bonfire.OpenScience.Zenodo do
 
       {:zenodo, :publish} ->
         "#{zenodo_base_url()}/deposit/depositions/#{params[:id]}/actions/publish"
+
+      {:zenodo, :update_deposit} ->
+        "#{zenodo_base_url()}/deposit/depositions/#{params[:id]}"
+
+      {:zenodo, :new_version} ->
+        "#{zenodo_base_url()}/deposit/depositions/#{params[:id]}/actions/newversion"
 
       {:invenio, :deposit} ->
         "#{invenio_base_url()}/records"
@@ -416,6 +530,12 @@ defmodule Bonfire.OpenScience.Zenodo do
 
       {:invenio, :publish} ->
         "#{invenio_base_url()}/records/#{params[:id]}/draft/actions/publish"
+
+      {:invenio, :update_deposit} ->
+        "#{invenio_base_url()}/records/#{params[:id]}/draft"
+
+      {:invenio, :new_version} ->
+        "#{invenio_base_url()}/records/#{params[:id]}/versions"
 
       _ ->
         raise ArgumentError,
@@ -463,6 +583,214 @@ defmodule Bonfire.OpenScience.Zenodo do
     |> Enum.reject(&is_nil/1)
   end
 
+  @doc """
+  Checks if a thread/post has been archived to Zenodo by looking for attached media with Zenodo metadata.
+
+  ## Parameters
+  - post: The post/thread object to check
+
+  ## Returns
+  true if the post has Zenodo archive, false otherwise
+  """
+  def has_zenodo_archive?(post) do
+    case get_thread_zenodo_metadata(post) do
+      {:ok, _metadata} -> true
+      {:error, _} -> false
+    end
+  end
+
+  @doc """
+  Gets the Zenodo metadata for a thread/post if it has been archived.
+
+  ## Parameters
+  - post: The post/thread object
+
+  ## Returns
+  {:ok, metadata} if found, {:error, :not_found} if no Zenodo archive exists
+  """
+  def get_thread_zenodo_metadata(post) do
+    # Use the `e` helper to safely access potentially unloaded associations
+    zenodo_metadata =
+      # Check if media is directly attached and loaded (could be a list or single media)
+      case e(post, :media, nil) do
+        media_list when is_list(media_list) ->
+          Enum.find_value(media_list, fn media ->
+            e(media, :metadata, "zenodo", nil)
+          end)
+
+        %{metadata: metadata} ->
+          e(metadata, "zenodo", nil)
+
+        _ -> nil
+      end ||
+      # Check if it's in a files list (if files are loaded)
+      (e(post, :files, []) |> Enum.find_value(fn file ->
+        e(file, :metadata, "zenodo", nil)
+      end)) ||
+      # Check if it's mixed into the post metadata itself
+      e(post, :metadata, "zenodo", nil)
+    if zenodo_metadata do
+      # Reconstruct the full metadata structure
+      metadata = %{"zenodo" => zenodo_metadata}
+      {:ok, metadata}
+    else
+      {:error, :not_found}
+    end
+  end
+
+  @doc """
+  Gets the media record that contains Zenodo metadata for a given post.
+
+  ## Parameters
+  - post: The post/activity to check for Zenodo metadata
+
+  ## Returns
+  {:ok, media_record, metadata} or {:error, :not_found}
+  """
+  def get_thread_zenodo_media(post) do
+    case get_all_thread_zenodo_media(post) do
+      [] ->
+        {:error, :not_found}
+      media_items ->
+        # Get the most recent item by deposit ID (higher = newer) with timestamp fallback
+        case Enum.max_by(media_items, &get_media_sort_key/1, fn -> nil end) do
+          nil ->
+            {:error, :not_found}
+          {media_record, zenodo_metadata} ->
+            metadata = %{"zenodo" => zenodo_metadata}
+            {:ok, media_record, metadata}
+        end
+    end
+  end
+
+  @doc """
+  Gets all media items with Zenodo metadata from a post.
+  Returns a list of {media, zenodo_metadata} tuples.
+  """
+  def get_all_thread_zenodo_media(post) do
+    media_items = []
+
+    # Check if media is directly attached and loaded (could be a list or single media)
+    media_items = media_items ++
+      case e(post, :media, nil) do
+        media_list when is_list(media_list) ->
+          media_list
+          |> Enum.filter_map(
+            fn media ->
+              e(media, :metadata, "zenodo", nil) != nil
+            end,
+            fn media ->
+              {media, e(media, :metadata, "zenodo", nil)}
+            end
+          )
+
+        %{metadata: metadata} = media ->
+          case e(metadata, "zenodo", nil) do
+            nil -> []
+            zenodo_metadata -> [{media, zenodo_metadata}]
+          end
+
+        _ -> []
+      end
+
+    # Check if it's in a files list (if files are loaded)
+    media_items = media_items ++
+      (e(post, :files, [])
+      |> Enum.filter_map(
+        fn file ->
+          e(file, :metadata, "zenodo", nil) != nil
+        end,
+        fn file ->
+          {file, e(file, :metadata, "zenodo", nil)}
+        end
+      ))
+
+    media_items
+  end
+
+  # Helper function to determine sort key for media items (newer deposits have higher IDs)
+  defp get_media_sort_key({media, zenodo_metadata}) do
+    case get_in(zenodo_metadata, ["id"]) do
+      id when is_number(id) ->
+        id
+      id when is_binary(id) ->
+        case Integer.parse(id) do
+          {int_id, ""} -> int_id
+          _ -> get_timestamp_fallback(media)
+        end
+      _ ->
+        get_timestamp_fallback(media)
+    end
+  end
+  
+  defp get_timestamp_fallback(media) do
+    case e(media, :inserted_at, nil) do
+      %DateTime{} = datetime -> DateTime.to_unix(datetime)
+      %NaiveDateTime{} = naive_datetime -> 
+        NaiveDateTime.to_erl(naive_datetime) 
+        |> :calendar.datetime_to_gregorian_seconds()
+      _ -> 0
+    end
+  end
+
+  @doc """
+  Extracts DOI and deposit information from Zenodo metadata.
+
+  ## Parameters
+  - metadata: The metadata map from get_thread_zenodo_metadata/1
+
+  ## Returns
+  %{doi: doi, deposit_id: id, is_published: boolean} or nil
+  """
+  def extract_zenodo_info(metadata) do
+    case get_in(metadata, ["zenodo"]) do
+      zenodo_data when is_map(zenodo_data) ->
+        doi = get_in(zenodo_data, ["doi"]) ||
+              get_in(zenodo_data, ["doi_url"]) ||
+              get_in(zenodo_data, ["metadata", "prereserve_doi", "doi"])
+        
+        # Try multiple possible locations for deposit_id
+        deposit_id = get_in(zenodo_data, ["id"]) ||
+                     get_in(zenodo_data, ["conceptrecid"]) ||
+                     get_in(zenodo_data, ["record_id"]) ||
+                     extract_deposit_id_from_doi(doi)
+        
+        %{
+          doi: doi,
+          deposit_id: deposit_id,
+          is_published:
+            get_in(zenodo_data, ["state"]) == "done" || 
+            get_in(zenodo_data, ["published"]) != nil ||
+            (doi != nil && String.contains?(to_string(doi), "zenodo."))
+        }
+
+      _ ->
+        nil
+    end
+  end
+
+  @doc """
+  Extracts deposit ID from DOI URL.
+  
+  ## Examples
+      iex> extract_deposit_id_from_doi("10.5072/zenodo.318466")
+      "318466"
+      
+      iex> extract_deposit_id_from_doi("https://doi.org/10.5072/zenodo.318466")
+      "318466"
+      
+      iex> extract_deposit_id_from_doi("invalid")
+      nil
+  """
+  def extract_deposit_id_from_doi(nil), do: nil
+  def extract_deposit_id_from_doi(doi) when is_binary(doi) do
+    case Regex.run(~r/zenodo\.(\d+)/, doi) do
+      [_match, deposit_id] -> deposit_id
+      _ -> nil
+    end
+  end
+  def extract_deposit_id_from_doi(_), do: nil
+
   defp prepare_upload_data(file_input, filename) do
     cond do
       is_binary(file_input) ->
@@ -483,6 +811,7 @@ defmodule Bonfire.OpenScience.Zenodo do
 
       true ->
         error(file_input, "Invalid file input")
+        {:error, "Invalid file input type"}
     end
   end
 end
