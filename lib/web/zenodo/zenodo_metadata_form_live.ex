@@ -103,6 +103,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
       end
 
     initial_creator = %{
+      "id" => id(current_user),
       "name" => author_name,
       "orcid" => user_orcid_id,
       "affiliation" => author_affiliation
@@ -122,14 +123,14 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     keywords = extract_keywords(object)
 
     metadata = %{
-      "upload_type" => get_default_upload_type(),
+      "upload_type" => MetadataHelpers.get_default_upload_type(),
       "title" => title,
       "description" => description,
       # "additional_descriptions" => comments_as_descriptions(object, current_user: current_user),
       # "notes" => comments_as_descriptions(replies, opts),
       "publication_date" => formatted_date,
-      "access_right" => get_default_access_right(),
-      "license" => get_default_license(),
+      "access_right" => MetadataHelpers.get_default_access_right(),
+      "license" => MetadataHelpers.get_default_license(),
       "keywords" => keywords
     }
 
@@ -168,12 +169,13 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     has_orcid_token = user_orcid_id && Bonfire.OpenScience.ORCID.has_orcid_write_access?()
 
     # Extract creators from existing Zenodo metadata
-    creators =
+    zenodo_creators =
       case e(zenodo_metadata, "creators", nil) do
         creators when is_list(creators) ->
           creators
           |> Enum.map(fn creator ->
             %{
+              "id" => e(creator, "id", nil),
               "name" => e(creator, "name", "") || "",
               "orcid" => e(creator, "orcid", "") || "",
               "affiliation" => e(creator, "affiliation", "") || ""
@@ -181,23 +183,20 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
           end)
 
         _ ->
-          # Fallback to current user as default creator
-          author_name =
-            e(current_user, :profile, :name, nil) ||
-              e(current_user, :character, :username, "Unknown Author")
-
-          author_affiliation =
-            e(current_user, :profile, :website, "") ||
-              e(current_user, :profile, :location, "")
-
-          [
-            %{
-              "name" => author_name,
-              "orcid" => user_orcid_id,
-              "affiliation" => author_affiliation
-            }
-          ]
+          []
       end
+
+    # Get thread participants as creators (with up-to-date profile info)
+    thread_participants =
+      thread_participants_as_creators(
+        e(socket.assigns, :participants, nil),
+        socket.assigns.object,
+        current_user
+      )
+
+    # Merge zenodo_creators and thread_participants
+    creators =
+      MetadataHelpers.merge_creators_with_participants(zenodo_creators, thread_participants)
 
     # Extract and format the publication date
     pub_date =
@@ -218,14 +217,15 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     metadata = %{
       "upload_type" =>
         e(zenodo_metadata, "resource_type", "type", nil) || e(zenodo_metadata, "upload_type", nil) ||
-          get_default_upload_type(),
+          MetadataHelpers.get_default_upload_type(),
       "title" => e(zenodo_metadata, "title", nil) || "",
       "description" => e(zenodo_metadata, "description", nil) || "",
       "publication_date" => pub_date,
-      "access_right" => e(zenodo_metadata, "access_right", nil) || get_default_access_right(),
+      "access_right" =>
+        e(zenodo_metadata, "access_right", nil) || MetadataHelpers.get_default_access_right(),
       "license" =>
         e(zenodo_metadata, "license", "id", nil) || e(zenodo_metadata, "license", nil) ||
-          get_default_license(),
+          MetadataHelpers.get_default_license(),
       "keywords" => keywords
     }
 
@@ -292,6 +292,8 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     # Get thread ID from the object
     thread_id = e(object, :replied, :thread_id, nil) || id(object)
 
+    current_user_id = id(current_user)
+
     if thread_id do
       # Get thread participants using Bonfire.Social.Threads
       case participants ||
@@ -303,7 +305,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
           participants
           |> Enum.reject(fn p ->
             # Exclude the current user (already added as primary author)
-            id(p) == e(current_user, :id, nil)
+            id(p) == current_user_id
           end)
           |> Enum.map(fn participant ->
             %{
@@ -331,15 +333,6 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
       []
     end
   end
-
-  defp text_only(html) when is_binary(html) do
-    html
-    |> String.replace(~r/<[^>]*>/, " ")
-    |> String.replace(~r/\s+/, " ")
-    |> String.trim()
-  end
-
-  defp text_only(_), do: ""
 
   defp extract_keywords(_post) do
     # TODO: Extract actual tags from post if they exist
@@ -424,7 +417,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
 
     creators =
       if Map.has_key?(params, "creators") do
-        extract_creators_from_params(params)
+        MetadataHelpers.extract_creators_from_params(params)
       else
         socket.assigns.creators
       end
@@ -432,7 +425,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     # Handle ORCID checkbox
     add_to_orcid = Map.get(params, "add_to_orcid") == "on"
 
-    errors = validate_metadata(metadata, creators)
+    errors = MetadataHelpers.validate_metadata(metadata, creators)
 
     {:noreply,
      socket
@@ -452,7 +445,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
   end
 
   defp handle_add_creator_from_form(params, socket) do
-    current_creators = extract_creators_from_params(params)
+    current_creators = MetadataHelpers.extract_creators_from_params(params)
 
     new_creator = %{
       "name" => "",
@@ -471,33 +464,15 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
   end
 
   defp handle_form_submit(params, socket) do
-    creators = extract_creators_from_params(params)
+    creators = MetadataHelpers.extract_creators_from_params(params)
     metadata_params = Map.get(params, "metadata", %{})
     metadata = Map.merge(socket.assigns.current_metadata, metadata_params)
 
-    case socket.assigns.mode do
-      :create -> handle_create_submission(socket, metadata, creators)
-      :edit_metadata -> handle_edit_metadata_submission(socket, metadata, creators)
-      :new_version -> handle_new_version_submission(socket, metadata, creators)
-      _ -> handle_create_submission(socket, metadata, creators)
-    end
+    handle_submission(socket.assigns.mode, socket, metadata, creators)
   end
 
-  defp handle_create_submission(socket, metadata, creators) do
-    errors = validate_metadata(metadata, creators)
-
-    if Enum.empty?(errors) do
-      {:noreply,
-       socket
-       |> assign(submitting: true)
-       |> submit_to_zenodo(metadata, creators)}
-    else
-      {:noreply, assign(socket, errors: errors)}
-    end
-  end
-
-  defp handle_edit_metadata_submission(socket, metadata, creators) do
-    errors = validate_metadata(metadata, creators)
+  defp handle_submission(:edit_metadata, socket, metadata, creators) do
+    errors = MetadataHelpers.validate_metadata(metadata, creators)
 
     if Enum.empty?(errors) do
       {:noreply,
@@ -509,8 +484,8 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     end
   end
 
-  defp handle_new_version_submission(socket, metadata, creators) do
-    errors = validate_metadata(metadata, creators)
+  defp handle_submission(:new_version, socket, metadata, creators) do
+    errors = MetadataHelpers.validate_metadata(metadata, creators)
 
     if Enum.empty?(errors) do
       {:noreply,
@@ -522,93 +497,24 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     end
   end
 
-  defp extract_creators_from_params(%{"creators" => creators_params})
-       when is_map(creators_params) do
-    creators_params
-    |> Enum.sort_by(fn {k, _v} -> String.to_integer(k) end)
-    |> Enum.map(fn {_index, creator} -> creator end)
-    |> Enum.reject(fn creator -> Map.get(creator, "_hidden", false) end)
-    |> Enum.reject(fn creator ->
-      # Filter out creators with empty names (removed or never filled)
-      name = String.trim(creator["name"] || "")
-      name == ""
-    end)
-  end
+  defp handle_submission(_create, socket, metadata, creators) do
+    errors = MetadataHelpers.validate_metadata(metadata, creators)
 
-  defp extract_creators_from_params(_), do: []
-
-  defp validate_metadata(metadata, creators) do
-    errors = %{}
-
-    # Validate title
-    errors =
-      if is_nil(metadata["title"]) or String.trim(metadata["title"]) == "" do
-        Map.put(errors, :title, "Title is required")
-      else
-        if String.length(metadata["title"]) > 500 do
-          Map.put(errors, :title, "Title must be less than 500 characters")
-        else
-          errors
-        end
-      end
-
-    # Validate description
-    errors =
-      if is_nil(metadata["description"]) or
-           String.length(String.trim(metadata["description"])) < 10 do
-        Map.put(errors, :description, "Description must be at least 10 characters")
-      else
-        errors
-      end
-
-    # Validate at least one visible creator with name
-    visible_creators = Enum.reject(creators, fn c -> Map.get(c, "_hidden", false) end)
-
-    has_valid_creator =
-      Enum.any?(visible_creators, fn c ->
-        c["name"] != nil and String.trim(c["name"]) != ""
-      end)
-
-    errors =
-      if not has_valid_creator do
-        Map.put(errors, :creators, "At least one author is required")
-      else
-        errors
-      end
-
-    # Validate ORCID format for any provided ORCIDs
-    invalid_orcids =
-      visible_creators
-      |> Enum.filter(fn c ->
-        orcid = String.trim(c["orcid"] || "")
-        orcid != "" and not Bonfire.OpenScience.ORCID.valid_orcid_format?(orcid)
-      end)
-      |> Enum.map(fn c -> c["name"] || "Unknown author" end)
-
-    errors =
-      if invalid_orcids != [] do
-        Map.put(errors, :creators, "Invalid ORCID format for: #{Enum.join(invalid_orcids, ", ")}")
-      else
-        errors
-      end
-
-    # Validate license if access_right is open
-    errors =
-      if metadata["access_right"] == "open" do
-        if is_nil(metadata["license"]) or metadata["license"] == "" do
-          Map.put(errors, :license, "License is required for open access")
-        else
-          errors
-        end
-      else
-        errors
-      end
-
-    errors
+    if Enum.empty?(errors) do
+      {:noreply,
+       socket
+       |> assign(submitting: true)
+       |> submit_to_zenodo(metadata, creators)}
+    else
+      {:noreply, assign(socket, errors: errors)}
+    end
   end
 
   defp update_zenodo_metadata(socket, metadata, creators) do
-    with {:ok, current_user, zenodo_info} <- validate_update_params(socket),
+    current_user = current_user(socket)
+
+    with {:ok, zenodo_info} <-
+           MetadataHelpers.validate_update_params(current_user, socket.assigns.zenodo_info),
          {:ok, processed_metadata} <- prepare_metadata_for_update(socket, metadata),
          {:ok, result} <-
            execute_metadata_update(
@@ -634,38 +540,6 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     end
   end
 
-  defp validate_update_params(socket) do
-    current_user = current_user(socket)
-    zenodo_info = socket.assigns.zenodo_info
-
-    cond do
-      is_nil(zenodo_info) ->
-        {:error, "Missing Zenodo deposit information"}
-
-      is_nil(current_user) ->
-        {:error, "Authentication required"}
-
-      true ->
-        # Ensure we have deposit_id, extracting from DOI if needed
-        fixed_zenodo_info = ensure_deposit_id(zenodo_info)
-
-        if is_nil(fixed_zenodo_info[:deposit_id]) do
-          {:error, "Missing Zenodo deposit ID - cannot determine which deposit to update"}
-        else
-          {:ok, current_user, fixed_zenodo_info}
-        end
-    end
-  end
-
-  defp ensure_deposit_id(%{deposit_id: nil, doi: doi} = zenodo_info) when is_binary(doi) do
-    case Bonfire.OpenScience.Zenodo.extract_deposit_id_from_doi(doi) do
-      nil -> zenodo_info
-      deposit_id -> Map.put(zenodo_info, :deposit_id, deposit_id)
-    end
-  end
-
-  defp ensure_deposit_id(zenodo_info), do: zenodo_info
-
   defp prepare_metadata_for_update(socket, metadata) do
     api_type = socket.assigns.api_type
 
@@ -679,7 +553,6 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
         end
       end)
       |> Map.put("notes", if(api_type == :zenodo, do: e(socket.assigns, :notes, nil)))
-      |> MetadataHelpers.clean_metadata_for_zenodo()
 
     {:ok, processed_metadata}
   end
@@ -693,7 +566,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     with {:ok, access_token, _api_type} <- Zenodo.get_user_zenodo_token(current_user),
          {:ok, deposit_info} <- Zenodo.get_deposit(deposit_id, access_token, api_type),
          {:ok, result} <-
-           handle_zenodo_edit_workflow(
+           Zenodo.handle_zenodo_edit_workflow(
              deposit_info,
              deposit_id,
              creators,
@@ -771,149 +644,6 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     end
   end
 
-  defp handle_zenodo_edit_workflow(
-         deposit_info,
-         deposit_id,
-         creators,
-         processed_metadata,
-         access_token,
-         api_type
-       ) do
-    is_published = deposit_info["state"] == "done" || deposit_info["doi"] != nil
-    debug({is_published, api_type}, "Determining workflow type")
-
-    cond do
-      is_published and api_type == :zenodo ->
-        # For published Zenodo deposits, use the "edit" action first
-        edit_url = get_in(deposit_info, ["links", "edit"])
-
-        if is_nil(edit_url) do
-          error("Edit URL not found in deposit links", "Missing edit URL")
-          {:error, "Edit URL not found in deposit links"}
-        else
-          zenodo_edit_publish_flow(
-            edit_url,
-            deposit_id,
-            creators,
-            processed_metadata,
-            access_token,
-            api_type
-          )
-        end
-
-      true ->
-        # For unpublished records or other cases, use direct update  
-        case Zenodo.update_deposit_metadata(
-               deposit_id,
-               creators,
-               processed_metadata,
-               access_token,
-               api_type
-             ) do
-          {:ok, result} ->
-            {:ok, "metadata updated directly"}
-
-          {:error, reason} ->
-            error(reason, "Direct metadata update failed")
-            {:error, reason}
-        end
-    end
-  end
-
-  defp zenodo_edit_publish_flow(
-         edit_url,
-         deposit_id,
-         creators,
-         processed_metadata,
-         access_token,
-         api_type
-       ) do
-    debug({edit_url, deposit_id}, "Starting zenodo_edit_publish_flow")
-
-    with {:ok, %{body: edit_response, status: edit_status}} when edit_status in 200..299 <-
-           Req.post(edit_url,
-             json: %{},
-             headers: [
-               {"Accept", "application/json"},
-               {"Authorization", "Bearer #{access_token}"}
-             ]
-           ) do
-      debug({edit_status, edit_response}, "Edit action successful")
-
-      # Step 2: Update metadata
-      case Zenodo.update_deposit_metadata(
-             deposit_id,
-             creators,
-             processed_metadata,
-             access_token,
-             api_type
-           ) do
-        {:ok, update_result} ->
-          debug(update_result, "Metadata update successful")
-
-          # Step 3: Publish the deposit
-          case zenodo_publish(deposit_id, access_token, api_type) do
-            {:ok, publish_result} ->
-              debug(publish_result, "Publish successful")
-              {:ok, "metadata updated and published via edit action"}
-
-            {:error, publish_error} ->
-              error(publish_error, "Failed to publish after metadata update")
-              {:error, "Failed to publish: #{inspect(publish_error)}"}
-          end
-
-        {:error, update_error} ->
-          error(update_error, "Failed to update metadata after edit action")
-          {:error, "Failed to update metadata: #{inspect(update_error)}"}
-      end
-    else
-      {:ok, %{status: edit_status, body: edit_body}} ->
-        error({edit_status, edit_body}, "Edit action failed")
-        {:error, "Edit action failed with status #{edit_status}: #{inspect(edit_body)}"}
-
-      {:error, edit_error} ->
-        error(edit_error, "Edit action request failed")
-        {:error, "Edit action request failed: #{inspect(edit_error)}"}
-    end
-  end
-
-  defp zenodo_publish(deposit_id, access_token, api_type) do
-    publish_url = "#{Zenodo.zenodo_base_url()}/deposit/depositions/#{deposit_id}/actions/publish"
-    debug({deposit_id, publish_url}, "Attempting to publish deposit")
-
-    case Req.post(publish_url,
-           json: %{},
-           headers: [
-             {"Accept", "application/json"},
-             {"Authorization", "Bearer #{access_token}"}
-           ],
-           receive_timeout: 60_000
-         ) do
-      {:ok, %{body: body, status: status}} when status in 200..299 ->
-        debug({status, body}, "Publish request successful")
-        {:ok, body}
-
-      {:ok, %{status: status, body: body}} ->
-        error({status, body}, "Publish request failed")
-        {:error, "Publish failed: #{status} - #{inspect(body)}"}
-
-      {:error, reason} ->
-        error(reason, "Publish HTTP request failed")
-        {:error, "HTTP request failed: #{inspect(reason)}"}
-    end
-  end
-
-  # Helper function to upload multiple files to a Zenodo deposit
-  defp upload_multiple_files(bucket_url, files, access_token, api_type) do
-    files
-    |> Enum.reduce_while({:ok, []}, fn {filename, file_data}, {:ok, acc} ->
-      case Zenodo.upload_file(bucket_url, file_data, access_token, api_type, filename) do
-        {:ok, result} -> {:cont, {:ok, [result | acc]}}
-        {:error, reason} -> {:halt, {:error, reason}}
-      end
-    end)
-  end
-
   defp create_zenodo_new_version(socket, metadata, creators) do
     current_user = current_user(socket)
     zenodo_info = socket.assigns.zenodo_info
@@ -942,7 +672,6 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
           "notes",
           if(api_type == :zenodo, do: e(socket.assigns, :notes, nil))
         )
-        |> MetadataHelpers.clean_metadata_for_zenodo()
 
       object = socket.assigns.object
 
@@ -967,9 +696,9 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
                  do:
                    {"discussion.md",
                     comments_as_note(e(socket.assigns, :replies, nil), :markdown, replies_opts())
-                    |> stream_into()}
+                    |> MetadataHelpers.stream_into()}
                ),
-               {"primary_content.json", prepare_record_json(object)},
+               {"primary_content.json", MetadataHelpers.prepare_record_json(object)},
                # Maybe attach the comments too
                if(include_comments,
                  do:
@@ -981,11 +710,11 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
              ]
              |> Enum.reject(&is_nil/1),
            {:ok, _files} <-
-             upload_multiple_files(bucket_url, files_to_upload, access_token, api_type),
+             Zenodo.upload_multiple_files(bucket_url, files_to_upload, access_token, api_type),
            {:ok, published} <-
              Zenodo.publish_deposit(new_deposit_id, access_token, api_type) do
         # Get the new DOI using the same helper as original
-        new_doi = extract_doi_from_deposit(published)
+        new_doi = MetadataHelpers.extract_doi_from_deposit(published)
 
         if is_nil(new_doi) do
           error(published, "No DOI found in published deposit")
@@ -1021,7 +750,8 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
               # the object
               object,
               new_doi,
-              creators
+              creators,
+              metadata["title"]
             )
           end)
 
@@ -1057,16 +787,6 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     end
   end
 
-  # Helper function to extract DOI from Zenodo deposit response
-  defp extract_doi_from_deposit(published) do
-    e(published, "doi_url", nil) ||
-      if doi =
-           e(published, "pids", "doi", "identifier", nil) ||
-             e(published, "metadata", "prereserve_doi", "doi", nil) do
-        "https://doi.org/#{doi}"
-      end
-  end
-
   defp submit_to_zenodo(socket, metadata, creators) do
     current_user = current_user(socket)
     api_type = socket.assigns.api_type
@@ -1091,7 +811,6 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
         "notes",
         if(api_type == :zenodo, do: e(socket.assigns, :notes, nil))
       )
-      |> MetadataHelpers.clean_metadata_for_zenodo()
 
     # |> Map.put("creators", socket.assigns.creators)
     # |> Map.put("include_comments", include_comments)
@@ -1109,9 +828,9 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
                  do:
                    {"discussion.md",
                     comments_as_note(e(socket.assigns, :replies, nil), :markdown, replies_opts())
-                    |> stream_into()}
+                    |> MetadataHelpers.stream_into()}
                ),
-               {"primary_content.json", prepare_record_json(object)},
+               {"primary_content.json", MetadataHelpers.prepare_record_json(object)},
                # Maybe attach the comments too
                if(include_comments,
                  do:
@@ -1125,8 +844,8 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
            )
            |> debug("published?"),
          doi when is_binary(doi) <-
-           extract_doi_from_deposit(e(result, :published, nil)) ||
-             extract_doi_from_deposit(deposit),
+           MetadataHelpers.extract_doi_from_deposit(e(result, :published, nil)) ||
+             MetadataHelpers.extract_doi_from_deposit(deposit),
          {:ok, _} <-
            Bonfire.OpenScience.save_as_attached_media(
              current_user,
@@ -1163,7 +882,8 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
               # the post
               object,
               doi,
-              creators
+              creators,
+              metadata["title"]
             )
           end)
 
@@ -1223,66 +943,5 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
         |> assign(submitting: false)
         |> assign_error("Failed to create DOI")
     end
-  end
-
-  defp prepare_record_json(object) do
-    with {:ok, json} <- Bonfire.UI.Me.ExportController.object_json(object) do
-      json
-      |> stream_into()
-    else
-      _ ->
-        []
-    end
-
-    # |> debug("jsssson")
-  end
-
-  defp stream_into(data) do
-    data
-    |> List.wrap()
-    |> Stream.into([])
-  end
-
-  def upload_type_options do
-    [
-      {"Publication", "publication"},
-      {"Dataset", "dataset"},
-      {"Software", "software"},
-      {"Other", "other"}
-    ]
-  end
-
-  def access_right_options do
-    [
-      {"Open Access", "open"},
-      {"Restricted", "restricted"},
-      {"Closed", "closed"}
-    ]
-  end
-
-  def license_options do
-    [
-      {"Creative Commons Attribution 4.0", "CC-BY-4.0"},
-      {"Creative Commons Attribution Share-Alike 4.0", "CC-BY-SA-4.0"},
-      {"Creative Commons Zero (Public Domain)", "CC0-1.0"},
-      {"MIT License", "MIT"},
-      {"Apache License 2.0", "Apache-2.0"}
-    ]
-  end
-
-  # Configuration helpers for default values
-  defp get_default_upload_type do
-    Bonfire.Common.Config.get(
-      [:bonfire_open_science, :zenodo_defaults, :upload_type],
-      "publication"
-    )
-  end
-
-  defp get_default_access_right do
-    Bonfire.Common.Config.get([:bonfire_open_science, :zenodo_defaults, :access_right], "open")
-  end
-
-  defp get_default_license do
-    Bonfire.Common.Config.get([:bonfire_open_science, :zenodo_defaults, :license], "CC-BY-4.0")
   end
 end

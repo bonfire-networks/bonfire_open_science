@@ -22,39 +22,26 @@ defmodule Bonfire.OpenScience.DOICoauthorNotifications do
 
   ## Examples
       iex> notify_coauthors_after_doi_publish(user, post, "10.5281/zenodo.123456", creators)
-      :ok
+      {:ok, "Successfully sent DOI notification DM to recipient_id"}
   """
-  def notify_coauthors_after_doi_publish(current_user, post, doi, creators) do
+  def notify_coauthors_after_doi_publish(current_user, post, doi, creators, title \\ nil) do
     debug("Starting DOI co-author notifications for DOI: #{doi}")
 
-    # Get thread participants
-    thread_id = e(post, :replied, :thread_id, nil) || id(post)
+    # Use creators list directly
+    recipients_without_orcid =
+      filter_participants_without_orcid(creators, id(current_user))
 
-    if thread_id do
-      case Threads.list_participants(post, thread_id,
-             current_user: current_user,
-             limit: 20
-           ) do
-        participants when is_list(participants) and participants != [] ->
-          # Filter participants without ORCID
-          recipients_without_orcid =
-            filter_participants_without_orcid(participants, creators, current_user)
+    if recipients_without_orcid != [] do
+      debug(length(recipients_without_orcid), "Found participants without ORCID to notify")
 
-          debug("Found #{length(recipients_without_orcid)} participants without ORCID to notify")
-
-          # Send DM to each participant
-          Enum.each(recipients_without_orcid, fn participant ->
-            send_doi_notification_dm(current_user, participant, post, doi)
-          end)
-
-        _ ->
-          debug("No thread participants found or participants list is empty")
-      end
+      # Send DM to each participant
+      Enum.map(recipients_without_orcid, fn recipient ->
+        send_doi_notification_dm(current_user, recipient, post, doi, title)
+      end)
+      |> Enums.all_oks_or_error()
     else
-      debug("No thread ID found for post")
+      {:error, info("No participants need to be notified")}
     end
-
-    :ok
   end
 
   @doc """
@@ -64,49 +51,33 @@ defmodule Bonfire.OpenScience.DOICoauthorNotifications do
   - The current user (publisher)
   - Participants who already have ORCID listed in creators
   """
-  defp filter_participants_without_orcid(participants, creators, current_user) do
-    # Get list of creator IDs that already have ORCID
-    creators_with_orcid =
-      creators
-      |> Enum.filter(fn c -> c["orcid"] && c["orcid"] != "" end)
-      |> Enum.map(fn c -> c["id"] end)
-      |> MapSet.new()
-
-    debug("Creators with ORCID: #{inspect(creators_with_orcid)}")
-
-    participants
-    |> Enum.reject(fn participant ->
-      participant_id = id(participant)
-
-      # Exclude current user and those with ORCID
-      exclude_current = participant_id == id(current_user)
-      exclude_has_orcid = MapSet.member?(creators_with_orcid, participant_id)
-
-      debug(
-        "Participant #{participant_id}: exclude_current=#{exclude_current}, exclude_has_orcid=#{exclude_has_orcid}"
-      )
-
-      exclude_current || exclude_has_orcid
+  defp filter_participants_without_orcid(creators, current_user_id) do
+    creators
+    |> Enum.reject(fn c ->
+      c["id"] == current_user_id or (c["orcid"] && c["orcid"] != "")
     end)
   end
 
   @doc """
   Sends a DM to a participant requesting their ORCID ID.
   """
-  defp send_doi_notification_dm(sender, recipient, post, doi) do
-    title = e(post, :post_content, :name, nil) || "Untitled"
-    sender_name = e(sender, :profile, :name, nil) || e(sender, :character, :username, "someone")
+  defp send_doi_notification_dm(sender, recipient, post, doi, title) do
+    title = title || e(post, :post_content, :name, nil) || "Untitled"
+
+    sender_name =
+      e(sender, :profile, :name, nil) || e(sender, :character, :username, l("someone"))
+
     instance_url = Bonfire.Common.URIs.base_uri() |> to_string()
 
+    # TODO: give an option to opt-out
     message_content = """
-    Hi! This is an automatic message sent in behalf of #{sender_name}.
-    #{sender_name} has just published the discussion "#{title}" on Zenodo with DOI: #{doi}
-    You were included as a co-author since you participated in the thread.
-    If you have an ORCID ID, please share it so it can be added to the publication metadata. This will help properly attribute your contribution and link it to your academic profile.
-    You can [visit this link](#{instance_url}/open_science/orcid_link/#{id(post)}?doi=#{URI.encode(doi)}) to add your ORCID to the publication.
-    You can add your ORCID to your Bonfire profile settings for future publications
+    Hi! This is an automated message sent by a Open Science Network instance of Bonfire on behalf of #{sender_name}.
 
-    View the publication: #{doi}
+    I have just archived the discussion "#{title}" with DOI: [#{doi}](#{doi}) and included you as a co-author since you participated in the thread. 
+
+    If you are a researcher and have an ORCID ID, please [visit this link](#{instance_url}/open_science/orcid_link/#{id(post)}/add/#{id(recipient)}?name=#{URI.encode(recipient["name"])}) to add it to the publication metadata. This will help properly attribute your contribution and link it to your academic profile.
+
+    If you're an Open Science Network user, you can also link your ORCID in your profile settings so it is automatically included in future publications.
 
     Thank you for your contribution to this research!
     """
@@ -123,12 +94,10 @@ defmodule Bonfire.OpenScience.DOICoauthorNotifications do
            [id(recipient)]
          ) do
       {:ok, _message} ->
-        debug("Successfully sent DOI notification DM to #{id(recipient)}")
-        :ok
+        {:ok, debug("Successfully sent DOI notification DM to #{id(recipient)}")}
 
       {:error, error} ->
-        error("Failed to send DOI notification DM to #{id(recipient)}: #{inspect(error)}")
-        {:error, error}
+        error(error, "Failed to send DOI notification DM to #{id(recipient)}")
     end
   end
 end

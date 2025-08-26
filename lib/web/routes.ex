@@ -26,14 +26,7 @@ defmodule Bonfire.OpenScience.Web.Routes do
       # pages anyone can view
       scope "/open_science/", Bonfire.OpenScience.Web do
         pipe_through(:browser)
-        live("/", HomeLive)
-        live("/about", AboutLive)
-      end
-
-      # pages guests can view (including ORCID link for co-authors)
-      scope "/open_science/", Bonfire.OpenScience.Web do
-        pipe_through(:browser)
-        live("/orcid_link/:post_id", OrcidLinkLive)
+        live("/orcid_link/:post_id/add/:user_id", OrcidLinkLive)
       end
 
       # pages only guests can view

@@ -12,13 +12,13 @@
             <li>
               <Bonfire.UI.Common.OpenModalLive
                 id={"zenodo-version-modal-#{@parent_id}"}
-                title_text={l("Create New %{api_type} Version", api_type: api_type)}
-                open_btn_text={l("Create new version")}
+                title_text={l("Archive a new version on %{api_type}", api_type: api_type)}
+                open_btn_text={l("Archive new version")}
                 modal_class="zenodo-modal"
               >
                 <:open_btn>
                   <div class="text-left">
-                    <span>{l("Create new version")}</span>
+                    <span>{l("Archive new version on %{api_type}", api_type: api_type)}</span>
                   </div>
                 </:open_btn>
 
@@ -37,13 +37,13 @@
             <li>
               <Bonfire.UI.Common.OpenModalLive
                 id={"zenodo-edit-modal-#{@parent_id}"}
-                title_text={l("Edit %{api_type} Metadata", api_type: api_type)}
-                open_btn_text={l("Edit metadata")}
+                title_text={l("Edit DOI on %{api_type}", api_type: api_type)}
+                open_btn_text={l("Edit DOI metadata")}
                 modal_class="zenodo-modal"
               >
                 <:open_btn>
                   <div class="text-left">
-                    <span>{l("Edit metadata")}</span>
+                    <span>{l("Edit DOI metadata")}</span>
                   </div>
                 </:open_btn>
 

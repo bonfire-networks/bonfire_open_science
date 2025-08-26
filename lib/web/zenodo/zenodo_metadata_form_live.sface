@@ -63,7 +63,7 @@
       <label class="input w-full">
         <span class="label">{l("Upload type")}</span>
         <select name="metadata[upload_type]" class="w-full" phx-change="validate" phx-target={@myself}>
-          {#for {label, value} <- upload_type_options()}
+          {#for {label, value} <- MetadataHelpers.upload_type_options()}
             <option value={value} selected={@current_metadata["upload_type"] == value}>
               {label}
             </option>
@@ -122,6 +122,7 @@
             class="creator-row flex gap-2 mb-2"
             style={if index > 0 and creator["_hidden"], do: "display: none", else: ""}
           >
+            <input type="hidden" name={"creators[#{index}][id]"} value={creator["id"]}>
             <input
               type="text"
               name={"creators[#{index}][name]"}
@@ -132,7 +133,6 @@
             />
             <input
               type="text"
-              disabled
               name={"creators[#{index}][orcid]"}
               value={creator["orcid"]}
               placeholder="0000-0000-0000-0000"
@@ -140,7 +140,6 @@
               id={"creator-#{index}-orcid"}
             />
             <input
-              disabled
               type="text"
               name={"creators[#{index}][affiliation]"}
               value={creator["affiliation"]}
@@ -238,7 +237,7 @@
     <fieldset class="fieldset mb-0 w-full">
       <legend class="fieldset-legend">{l("Access rights")} *</legend>
       <div class="space-y-2">
-        {#for {label, value} <- access_right_options()}
+        {#for {label, value} <- MetadataHelpers.access_right_options()}
           <label class="flex items-center gap-2 cursor-pointer">
             <input
               type="radio"
@@ -266,7 +265,7 @@
       <label class="input w-full">
         <span class="label">{l("License")}</span>
         <select name="metadata[license]" class="w-full" phx-change="validate" phx-target={@myself}>
-          {#for {label, value} <- license_options()}
+          {#for {label, value} <- MetadataHelpers.license_options()}
             <option value={value} selected={@current_metadata["license"] == value}>
               {label}
             </option>

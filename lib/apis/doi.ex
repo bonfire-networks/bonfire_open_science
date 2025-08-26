@@ -1,4 +1,6 @@
 defmodule Bonfire.OpenScience.DOI do
+  import Untangle
+
   @doi_matcher "10.\d{4,9}\/[-._;()\/:A-Z0-9]+$"
   def doi_matcher(), do: ~r/^#{@doi_matcher}/i
 

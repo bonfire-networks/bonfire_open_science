@@ -5,6 +5,8 @@ defmodule Bonfire.OpenScience.Zenodo do
 
   use Bonfire.Common.Utils
   alias Bonfire.OpenScience
+  alias Bonfire.OpenScience.Zenodo
+  alias Bonfire.OpenScience.Zenodo.MetadataHelpers
 
   @base_url "https://zenodo.org/api"
   @sandbox_url "https://sandbox.zenodo.org/api"
@@ -150,15 +152,12 @@ defmodule Bonfire.OpenScience.Zenodo do
     else
       {:error, %Jason.EncodeError{} = e} ->
         error(e, "Failed to encode metadata as JSON")
-        {:error, "Failed to encode metadata as JSON"}
 
       {:ok, %{status: status, body: body}} ->
         error(body, "Zenodo API error: #{status}")
-        {:error, "Zenodo API error: #{status}"}
 
       {:error, reason} ->
         error(reason, "HTTP request failed")
-        {:error, reason}
     end
   end
 
@@ -204,11 +203,9 @@ defmodule Bonfire.OpenScience.Zenodo do
 
             {:ok, %{status: status, body: body}} ->
               error(body, "File upload to Zenodo failed: #{status}")
-              {:error, "File upload to Zenodo failed: #{status}"}
 
             {:error, reason} ->
               error(reason, "File upload to Zenodo failed")
-              {:error, "File upload to Zenodo failed"}
           end
 
         :invenio ->
@@ -253,7 +250,6 @@ defmodule Bonfire.OpenScience.Zenodo do
 
             {:ok, %{status: status, body: body}} ->
               error(body, "File upload to Invenio failed: #{status}")
-              {:error, "File upload to Invenio failed: #{status}"}
 
             {:error, reason} ->
               error(reason, "File upload to Invenio failed")
@@ -296,9 +292,11 @@ defmodule Bonfire.OpenScience.Zenodo do
            ) do
       {:ok, body}
     else
+      {:ok, %{status: status, body: %{"message" => message, "errors" => errors} = body}} ->
+        error(body, "Publish request failed: #{message} #{zenodo_error_to_message(errors)}")
+
       {:ok, %{status: status, body: body}} ->
         error(body, "Zenodo publish error: #{status}")
-        {:error, "Zenodo publish error: #{status}"}
 
       {:error, reason} ->
         error(reason, "Publish request failed")
@@ -331,7 +329,6 @@ defmodule Bonfire.OpenScience.Zenodo do
     else
       {:ok, %{status: status, body: body}} ->
         error(body, "Zenodo API error: #{status}")
-        {:error, "Zenodo API error: #{status}"}
 
       {:error, reason} ->
         error(reason, "HTTP request failed")
@@ -378,11 +375,9 @@ defmodule Bonfire.OpenScience.Zenodo do
     else
       {:error, %Jason.EncodeError{} = e} ->
         error(e, "Failed to encode metadata as JSON")
-        {:error, "Failed to encode metadata as JSON"}
 
       {:ok, %{status: status, body: body}} ->
         error(body, "Zenodo API error: #{status}")
-        {:error, "Zenodo API error: #{status}"}
 
       {:error, reason} ->
         error(reason, "HTTP request failed")
@@ -418,7 +413,6 @@ defmodule Bonfire.OpenScience.Zenodo do
     else
       {:ok, %{status: status, body: body}} ->
         error(body, "Zenodo API error: #{status}")
-        {:error, "Zenodo API error: #{status}"}
 
       {:error, reason} ->
         error(reason, "HTTP request failed")
@@ -435,6 +429,7 @@ defmodule Bonfire.OpenScience.Zenodo do
       %{
         "metadata" =>
           metadata
+          |> MetadataHelpers.clean_metadata_for_zenodo()
           |> Map.put_new("resource_type", %{"id" => "dataset"})
           |> Map.put_new("publisher", get_publisher_name())
           |> Map.put("creators", format_creators_for_invenio(creators))
@@ -667,6 +662,8 @@ defmodule Bonfire.OpenScience.Zenodo do
   """
   def get_all_thread_zenodo_media(media) do
     # TODO: deduplicate this function and get_thread_zenodo_metadata
+    media
+    |> flood("input_media")
 
     # Check if media is directly attached and loaded (could be a list or single media)
     case media do
@@ -687,6 +684,7 @@ defmodule Bonfire.OpenScience.Zenodo do
       _ ->
         []
     end
+    |> flood("all_zen_media")
   end
 
   # Helper function to determine sort key for media items (newer deposits have higher IDs)
@@ -775,6 +773,16 @@ defmodule Bonfire.OpenScience.Zenodo do
 
   def extract_deposit_id_from_doi(_), do: nil
 
+  # Helper function to extract DOI from Zenodo deposit response
+  def extract_doi_from_deposit(published) do
+    e(published, "doi_url", nil) ||
+      if doi =
+           e(published, "pids", "doi", "identifier", nil) ||
+             e(published, "metadata", "prereserve_doi", "doi", nil) do
+        "https://doi.org/#{doi}"
+      end
+  end
+
   defp prepare_upload_data(file_input, filename) do
     cond do
       is_binary(file_input) ->
@@ -795,7 +803,165 @@ defmodule Bonfire.OpenScience.Zenodo do
 
       true ->
         error(file_input, "Invalid file input")
-        {:error, "Invalid file input type"}
     end
   end
+
+  # Helper function to upload multiple files to a Zenodo deposit
+  def upload_multiple_files(bucket_url, files, access_token, api_type) do
+    files
+    |> Enum.reduce_while({:ok, []}, fn {filename, file_data}, {:ok, acc} ->
+      case Zenodo.upload_file(bucket_url, file_data, access_token, api_type, filename) do
+        {:ok, result} -> {:cont, {:ok, [result | acc]}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  # Extract Zenodo information from a DOI URL
+  def extract_zenodo_info_from_doi(doi) when is_binary(doi) do
+    # Extract deposit ID from Zenodo DOI URL
+    # DOI format: https://doi.org/10.5072/zenodo.318716
+    # or: 10.5072/zenodo.318716
+    case extract_deposit_id_from_doi(doi) do
+      deposit_id when is_integer(deposit_id) ->
+        {:ok, %{deposit_id: deposit_id, doi: doi}}
+
+      deposit_id when is_binary(deposit_id) ->
+        case Integer.parse(deposit_id) do
+          {id, ""} -> {:ok, %{deposit_id: id, doi: doi}}
+          e -> error(e, "Invalid deposit ID in DOI")
+        end
+
+      e ->
+        error(e, "Could not extract deposit ID from DOI")
+    end
+  end
+
+  def extract_zenodo_info_from_doi(_), do: {:error, "No DOI provided"}
+
+  def handle_zenodo_edit_workflow(
+        deposit_info,
+        deposit_id,
+        creators,
+        processed_metadata,
+        access_token,
+        api_type
+      ) do
+    is_published = deposit_info["state"] == "done" || deposit_info["doi"] != nil
+    debug({is_published, api_type}, "Determining workflow type")
+
+    cond do
+      is_published and api_type == :zenodo ->
+        # For published Zenodo deposits, use the "edit" action first
+        edit_url = e(deposit_info, "links", "edit", nil)
+
+        if is_nil(edit_url) do
+          error("Edit URL not found in deposit links")
+        else
+          zenodo_edit_publish_flow(
+            edit_url,
+            deposit_id,
+            creators,
+            processed_metadata,
+            access_token,
+            api_type
+          )
+        end
+
+      true ->
+        # For unpublished records or other cases, use direct update  
+        case update_deposit_metadata(
+               deposit_id,
+               creators,
+               processed_metadata,
+               access_token,
+               api_type
+             ) do
+          {:ok, result} ->
+            {:ok, "metadata updated directly"}
+
+          {:error, reason} ->
+            error(reason, "Direct metadata update failed")
+            {:error, reason}
+        end
+    end
+  end
+
+  def zenodo_edit_publish_flow(
+        edit_url,
+        deposit_id,
+        creators,
+        processed_metadata,
+        access_token,
+        api_type
+      ) do
+    debug({edit_url, deposit_id}, "Starting zenodo_edit_publish_flow")
+
+    processed_metadata =
+      processed_metadata
+      # to avoid this when editing: A validation error occurred. pids.doi: The prefix '10.5072' is managed by Zenodo. Please supply an external DOI or select 'No' to have a DOI generated for you
+      |> Map.drop(["doi", "doi_url"])
+
+    with {:ok, %{body: edit_response, status: edit_status}} when edit_status in 200..299 <-
+           Req.post(edit_url,
+             json: %{},
+             headers: [
+               {"Accept", "application/json"},
+               {"Authorization", "Bearer #{access_token}"}
+             ]
+           ) do
+      debug(edit_response, "Edit action successful")
+
+      # Step 2: Update metadata
+      case update_deposit_metadata(
+             deposit_id,
+             creators,
+             processed_metadata,
+             access_token,
+             api_type
+           ) do
+        {:ok, update_result} ->
+          debug(update_result, "Metadata update successful")
+
+          # Step 3: Publish the deposit
+          case publish_deposit(deposit_id, access_token, api_type) do
+            {:ok, publish_result} ->
+              debug(publish_result, "Publish successful")
+              {:ok, "metadata updated and published via edit action"}
+
+            {:error, publish_error} ->
+              error(processed_metadata, "Failed to publish after metadata update")
+              {:error, publish_error}
+          end
+
+        {:error, update_error} ->
+          error(update_error, "Failed to update metadata after edit action")
+      end
+    else
+      {:ok, %{status: edit_status, body: edit_body}} ->
+        error({edit_status, edit_body}, "Edit action failed")
+
+      {:error, edit_error} ->
+        error(edit_error, "Edit action request failed")
+    end
+  end
+
+  # Converts a Zenodo error response into a human-readable message
+  def zenodo_error_to_message(errors) when is_list(errors) do
+    errors
+    |> Enum.map(fn
+      %{"field" => field, "messages" => msgs} when is_list(msgs) ->
+        "#{field}: #{Enum.join(msgs, "; ")}"
+
+      %{"field" => field, "message" => m} ->
+        "#{field}: #{m}"
+
+      other ->
+        inspect(other)
+    end)
+    |> Enum.join(" | ")
+  end
+
+  def zenodo_error_to_message(%{"message" => msg}), do: msg
+  def zenodo_error_to_message(other), do: inspect(other)
 end

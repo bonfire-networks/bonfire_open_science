@@ -24,6 +24,9 @@ defmodule Bonfire.OpenScience.DataCase do
       import Ecto.Query
       # import Bonfire.OpenScience.DataCase
 
+      use Bonfire.Common.Utils
+      import Bonfire.Me.Fake
+
       @moduletag :backend
     end
   end
