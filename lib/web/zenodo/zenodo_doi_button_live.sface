@@ -3,7 +3,7 @@
   {#match nil}
   {#match api_type}
     {#case Bonfire.OpenScience.Zenodo.get_thread_zenodo_media(@media)
-      |> flood("<zenodo_media> from #{inspect(@media)}")}
+      |> debug("<zenodo_media> from #{inspect(@media)}")}
       {#match {:ok, media, metadata}}
         {#case Bonfire.OpenScience.Zenodo.extract_zenodo_info(metadata)}
           {#match zenodo_info}

@@ -663,7 +663,7 @@ defmodule Bonfire.OpenScience.Zenodo do
   def get_all_thread_zenodo_media(media) do
     # TODO: deduplicate this function and get_thread_zenodo_metadata
     media
-    |> flood("input_media")
+    |> debug("input_media")
 
     # Check if media is directly attached and loaded (could be a list or single media)
     case media do
@@ -684,7 +684,7 @@ defmodule Bonfire.OpenScience.Zenodo do
       _ ->
         []
     end
-    |> flood("all_zen_media")
+    |> debug("all_zen_media")
   end
 
   # Helper function to determine sort key for media items (newer deposits have higher IDs)
