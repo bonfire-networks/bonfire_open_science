@@ -198,4 +198,5 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
     debug({deposit_id}, "Deposit info received, will handle in update logic")
     {:ok, deposit_info, deposit_id}
   end
+
 end

@@ -714,7 +714,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
            {:ok, published} <-
              Zenodo.publish_deposit(new_deposit_id, access_token, api_type) do
         # Get the new DOI using the same helper as original
-        new_doi = MetadataHelpers.extract_doi_from_deposit(published)
+        new_doi = Bonfire.OpenScience.Zenodo.extract_doi_from_deposit(published)
 
         if is_nil(new_doi) do
           error(published, "No DOI found in published deposit")
@@ -844,8 +844,8 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
            )
            |> debug("published?"),
          doi when is_binary(doi) <-
-           MetadataHelpers.extract_doi_from_deposit(e(result, :published, nil)) ||
-             MetadataHelpers.extract_doi_from_deposit(deposit),
+           Bonfire.OpenScience.Zenodo.extract_doi_from_deposit(e(result, :published, nil)) ||
+             Bonfire.OpenScience.Zenodo.extract_doi_from_deposit(deposit),
          {:ok, _} <-
            Bonfire.OpenScience.save_as_attached_media(
              current_user,

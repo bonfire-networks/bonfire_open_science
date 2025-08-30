@@ -32,7 +32,7 @@
             name="add_to_orcid"
             class="checkbox checkbox-primary"
             checked={@add_to_orcid}
-            disabled={not @has_orcid_token}
+            disabled={not (@has_orcid_token || false)}
             phx-change="validate"
             phx-target={@myself}
           />

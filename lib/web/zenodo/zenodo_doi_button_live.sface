@@ -1,7 +1,7 @@
-<li class="m-1 border-t border-base-content/10" />
 {#case Bonfire.OpenScience.Zenodo.get_user_api_type(current_user(@__context__))}
   {#match nil}
   {#match api_type}
+    <li class="m-1 border-t border-base-content/10" />
     {#case Bonfire.OpenScience.Zenodo.get_thread_zenodo_media(@media)
       |> debug("<zenodo_media> from #{inspect(@media)}")}
       {#match {:ok, media, metadata}}
@@ -83,5 +83,5 @@
           </Bonfire.UI.Common.OpenModalLive>
         </li>
     {/case}
+    <li class="m-1 border-t border-base-content/10" />
 {/case}
-<li class="m-1 border-t border-base-content/10" />

@@ -5,6 +5,7 @@ defmodule Bonfire.OpenScience.Zenodo.MetadataHelpers do
   These functions ensure metadata is properly formatted for Zenodo API submission
   by removing empty fields and standardizing data structures.
   """
+  use Bonfire.Common.Config
   import Untangle
 
   @doc """
