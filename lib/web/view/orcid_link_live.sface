@@ -57,9 +57,6 @@
                   {#else}
                     <!-- ORCID OAuth Sign-in -->
                     <div :if={current_user_id(@__context__)}>
-                      {!-- <label class="label">
-                  <span class="label-text font-medium">{l("Sign in with your ORCID account:")}</span>
-                </label> --}
                       <StatelessComponent
                         module={Bonfire.OpenID.Web.SignInWithExternalProvidersLive}
                         source={:orcid_link}
@@ -91,7 +88,7 @@
                           <input type="hidden" name="user_id" value={@user_id}>
                           <input type="hidden" name="name" value={@name}>
                           <input type="hidden" name="object_id" value={id(@object)}>
-                          <button type="submit" class="btn btn-orcid">
+                          <button type="submit" class="btn btn-orcid phx-submit-loading:loading">
                             <#Icon iconify="heroicons-solid:check" class="w-4 h-4" />
                             {l("Submit")}
                           </button>
