@@ -296,7 +296,11 @@
       <!-- <button type="button" class="btn btn-ghost" :click="close">
         {l("Cancel")}
       </button> -->
-      <button type="submit" class={"btn btn-primary phx-submit-loading:loading", loading: @submitting} disabled={@submitting}>
+      <button
+        type="submit"
+        class={"btn btn-primary phx-submit-loading:loading", loading: @submitting}
+        disabled={@submitting}
+      >
         {#if @submitting}
           <span class="loading loading-spinner" />
           {#if @mode == :edit_metadata}
