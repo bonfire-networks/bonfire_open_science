@@ -138,6 +138,7 @@
               placeholder="0000-0000-0000-0000"
               class="input input-sm w-48"
               id={"creator-#{index}-orcid"}
+              disabled={creator["id"] && creator["id"] != current_user_id(@__context__)}
             />
             <input
               type="text"
