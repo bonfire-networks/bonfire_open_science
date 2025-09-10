@@ -84,7 +84,7 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
                  current_user: current_user,
                  preload: [:with_media, :with_creator]
                )
-               |> ok_unwrap())
+               |> from_ok())
 
         user_id = params["user_id"] || id(current_user)
 
