@@ -108,8 +108,10 @@ defmodule Bonfire.OpenScience.Publications do
 
     # Fetch publications concurrently  
     tasks = [
-      Task.async(fn -> {:recent_publication, Client.fetch_recent_publication(orcid_id)} end),
-      Task.async(fn ->
+      apply_task(:async, fn ->
+        {:recent_publication, Client.fetch_recent_publication(orcid_id)}
+      end),
+      apply_task(:async, fn ->
         {:most_cited_publication, Client.fetch_most_cited_publication(orcid_id)}
       end)
     ]

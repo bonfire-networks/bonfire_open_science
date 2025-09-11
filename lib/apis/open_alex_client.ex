@@ -90,8 +90,8 @@ defmodule Bonfire.OpenScience.OpenAlex.Client do
   """
   def fetch_complete_data(orcid_id) when is_binary(orcid_id) do
     tasks = [
-      Task.async(fn -> {:author_data, fetch_author(orcid_id)} end),
-      Task.async(fn -> {:works_by_type, fetch_works_by_type(orcid_id)} end)
+      apply_task(:async, fn -> {:author_data, fetch_author(orcid_id)} end),
+      apply_task(:async, fn -> {:works_by_type, fetch_works_by_type(orcid_id)} end)
     ]
 
     results = Task.await_many(tasks, 15_000)
