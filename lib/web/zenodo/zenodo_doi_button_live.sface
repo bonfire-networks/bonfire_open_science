@@ -11,7 +11,7 @@
 
             <li>
               <Bonfire.UI.Common.OpenModalLive
-                id={"zenodo-version-modal-#{@parent_id}"}
+                id={deterministic_dom_id(__MODULE__, nil, "zenodo-version-modal", @parent_id)}
                 title_text={l("Archive a new version on %{api_type}", api_type: api_type)}
                 open_btn_text={l("Archive new version")}
                 modal_class="zenodo-modal"
@@ -29,14 +29,14 @@
                   zenodo_info={zenodo_info}
                   media={media}
                   mode={:new_version}
-                  id={"zenodo-metadata-form-version-#{@parent_id}"}
+                  id={deterministic_dom_id(__MODULE__, nil, "zenodo-metadata-form-version", @parent_id)}
                 />
               </Bonfire.UI.Common.OpenModalLive>
             </li>
 
             <li>
               <Bonfire.UI.Common.OpenModalLive
-                id={"zenodo-edit-modal-#{@parent_id}"}
+                id={deterministic_dom_id(__MODULE__, nil, "zenodo-edit-modal", @parent_id)}
                 title_text={l("Edit DOI on %{api_type}", api_type: api_type)}
                 open_btn_text={l("Edit DOI metadata")}
                 modal_class="zenodo-modal"
@@ -54,7 +54,7 @@
                   zenodo_info={zenodo_info}
                   media={media}
                   mode={:edit_metadata}
-                  id={"zenodo-metadata-form-edit-#{@parent_id}"}
+                  id={deterministic_dom_id(__MODULE__, nil, "zenodo-metadata-form-edit", @parent_id)}
                 />
               </Bonfire.UI.Common.OpenModalLive>
             </li>
@@ -63,7 +63,7 @@
         <li>
           <!-- No existing metadata - fallback to create -->
           <Bonfire.UI.Common.OpenModalLive
-            id={"zenodo-doi-modal-#{@parent_id}"}
+            id={deterministic_dom_id(__MODULE__, nil, "zenodo-doi-modal", @parent_id)}
             title_text={l("Create DOI with %{api_type}", api_type: api_type)}
             open_btn_text={l("Create DOI with %{api_type}", api_type: api_type)}
             modal_class="zenodo-modal"
@@ -78,7 +78,7 @@
               api_type={api_type}
               object={@object}
               participants={@participants}
-              id={"zenodo-metadata-form-#{@parent_id}"}
+              id={deterministic_dom_id(__MODULE__, nil, "zenodo-metadata-form", @parent_id)}
             />
           </Bonfire.UI.Common.OpenModalLive>
         </li>
