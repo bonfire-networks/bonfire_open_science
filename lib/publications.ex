@@ -9,7 +9,7 @@ defmodule Bonfire.OpenScience.Publications do
   alias Bonfire.OpenScience.ORCID
   alias Bonfire.OpenScience
   alias Bonfire.Common.Cache
-  alias Bonfire.Common.Settings
+  use Bonfire.Common.Settings
 
   # 3 hours
   @default_cache_ttl 1_000 * 60 * 60 * 3
