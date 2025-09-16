@@ -151,7 +151,7 @@ defmodule Bonfire.OpenScience.Zenodo.MetadataHelpers do
   # def ensure_correct_doi_format(metadata, _), do: metadata
 
   def prepare_record_json(object) do
-    with {:ok, json} <- Bonfire.UI.Me.ExportController.object_json(object) do
+    with {:ok, json} <- Bonfire.UI.Social.ExportController.object_json(object) do
       json
       |> stream_into()
     else

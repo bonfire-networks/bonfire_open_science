@@ -703,7 +703,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
                if(include_comments,
                  do:
                    {"replies.json",
-                    Bonfire.UI.Me.ExportController.create_json_stream(nil, "thread",
+                    Bonfire.UI.Social.ExportController.create_json_stream(nil, "thread",
                       replies: socket.assigns.reply_ids || []
                     )}
                )
@@ -835,7 +835,7 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
                if(include_comments,
                  do:
                    {"replies.json",
-                    Bonfire.UI.Me.ExportController.create_json_stream(nil, "thread",
+                    Bonfire.UI.Social.ExportController.create_json_stream(nil, "thread",
                       replies: socket.assigns.reply_ids || []
                     )}
                )
