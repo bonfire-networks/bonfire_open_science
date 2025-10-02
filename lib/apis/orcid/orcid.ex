@@ -299,6 +299,7 @@ defmodule Bonfire.OpenScience.ORCID do
     with {:ok, medias} <- Bonfire.Files.Media.many(media_type: "orcid") |> debug() do
       Enum.map(medias, fn media ->
         case Bonfire.Social.Graph.Aliases.all_subjects_by_object(media) |> debug() do
+          # TODO: put each scientist in the Oban queue to be fetched one by one in separate jobs
           [%{} = user] -> fetch_orcid_latest(user, media, opts)
           other -> warn(media, "Could not find a user linked this ORCID via an Alias")
         end
