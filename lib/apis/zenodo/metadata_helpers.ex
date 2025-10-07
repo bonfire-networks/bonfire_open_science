@@ -414,9 +414,10 @@ defmodule Bonfire.OpenScience.Zenodo.MetadataHelpers do
 
   def upload_type_options do
     [
-      {"Publication", "publication"},
-      {"Dataset", "dataset"},
-      {"Software", "software"},
+      {"Preprint", "preprint"},
+      {"Working paper", "working-paper"},
+      {"Blog post", "blog-post"},
+      {"Report", "report"},
       {"Other", "other"}
     ]
   end
