@@ -29,7 +29,7 @@ defmodule Bonfire.OpenScience do
   def pub_id_matcher(type), do: pub_id_and_uri_matchers()[type]
 
   def maybe_fetch_and_save_work(user, url, extra_data \\ %{}, opts \\ []) do
-    Bonfire.Files.Acts.URLPreviews.maybe_fetch_and_save(
+    Bonfire.Files.Media.maybe_fetch_and_save(
       user,
       url,
       opts
@@ -62,7 +62,7 @@ defmodule Bonfire.OpenScience do
         object,
         opts \\ []
       ) do
-    Bonfire.Files.Acts.URLPreviews.maybe_save(
+    Bonfire.Files.Media.maybe_save(
       user,
       url,
       meta,
