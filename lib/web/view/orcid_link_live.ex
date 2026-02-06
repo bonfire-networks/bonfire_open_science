@@ -17,7 +17,6 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
        page_title: l("Add ORCID to Publication"),
        page: "orcid_link",
        back: true,
-       nav_items: Bonfire.Common.ExtensionModule.default_nav(),
        activity: nil,
        object: nil,
        user_id: nil,
