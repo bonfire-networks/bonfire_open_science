@@ -273,9 +273,9 @@
           {/for}
         </select>
       </label>
-      <a href="https://choosealicense.com" target="_blank" class="link link-primary text-sm">
+      <LinkLive to="https://choosealicense.com" target="_blank" class="link link-primary text-sm">
         {l("Help choosing a license")}
-      </a>
+      </LinkLive>
       {#if Map.has_key?(@errors, :license)}
         <span class="text-error text-sm">{@errors.license}</span>
       {/if}

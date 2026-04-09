@@ -10,9 +10,9 @@
                 <span class="font-medium">{l("Current Institution")}:
                 </span>
                 {#for institution <- Enum.take(institutions, 1)}
-                  <a href={e(institution, "ror", nil)} class="link link-primary" target="_blank">
+                  <LinkLive to={e(institution, "ror", nil)} class="link link-primary" target="_blank">
                     {e(institution, "display_name", l("Unknown Institution"))}
-                  </a>
+                  </LinkLive>
                 {/for}
               </div>
             </div>
@@ -29,9 +29,13 @@
                 </span>
                 <span class="inline-flex flex-wrap gap-1">
                   {#for {affiliation, index} <- Enum.with_index(Enum.drop(affiliations, 1))}
-                    <a href={e(affiliation, "institution", "ror", nil)} class="link link-primary" target="_blank">
+                    <LinkLive
+                      to={e(affiliation, "institution", "ror", nil)}
+                      class="link link-primary"
+                      target="_blank"
+                    >
                       {e(affiliation, "institution", "display_name", l("Unknown Institution"))}
-                    </a>{#if index < length(Enum.drop(affiliations, 1)) - 1},
+                    </LinkLive>{#if index < length(Enum.drop(affiliations, 1)) - 1},
                     {/if}
                   {/for}
                 </span>
