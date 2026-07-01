@@ -5,7 +5,7 @@ defmodule Bonfire.OpenScience.Web.Routes do
 
   @behaviour Bonfire.UI.Common.RoutesModule
 
-  declare_extension("Open Science",
+  declare_extension(l("Open Science"),
     icon: "mingcute:microscope-fill",
     emoji: "🔬",
     description: l("The next generation of digital spaces for open science."),
