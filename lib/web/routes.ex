@@ -14,12 +14,12 @@ defmodule Bonfire.OpenScience.Web.Routes do
     ]
   )
 
-  declare_nav_link(l("Publications"),
-    page: "research",
-    # served by this route in `Bonfire.UI.Social`: `live("/feed/:tab/:object_types", FeedsLive, as: :feed)`)
-    href: "/feed/research",
-    icon: "carbon:document"
-  )
+  # declare_nav_link(l("Publications"),
+  #   page: "research",
+  #   # served by this route in `Bonfire.UI.Social`: `live("/feed/:tab/:object_types", FeedsLive, as: :feed)`)
+  #   href: "/feed/research",
+  #   icon: "carbon:document"
+  # )
 
   defmacro __using__(_) do
     quote do
