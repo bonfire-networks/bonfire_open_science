@@ -283,7 +283,9 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
   end
 
   defp comments_as_note(replies, render_as \\ :html, opts \\ []) do
-    maybe_apply(Bonfire.UI.Posts, :render_replies, [replies, render_as, opts])
+    maybe_apply(Bonfire.Social.Objects.Render, :render_replies, [replies, render_as, opts],
+      fallback_return: []
+    )
     |> Enum.reject(&(&1 == ""))
     |> Enum.join("\n")
   end
