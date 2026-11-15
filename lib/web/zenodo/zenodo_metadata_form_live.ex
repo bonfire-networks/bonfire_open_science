@@ -473,29 +473,33 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
     handle_submission(socket.assigns.mode, socket, metadata, creators)
   end
 
-  defp handle_submission(:edit_metadata, socket, metadata, creators) do
-    errors = MetadataHelpers.validate_metadata(metadata, creators)
-
-    if Enum.empty?(errors) do
-      {:noreply,
-       socket
-       |> assign(submitting: true)
-       |> update_zenodo_metadata(metadata, creators)}
-    else
-      {:noreply, assign(socket, errors: errors)}
+  # Only the user who archived the post (the deposit's media creator) may change the deposit, whoever else may edit the post
+  defp deposit_creator?(socket) do
+    case id(current_user(socket)) do
+      nil -> false
+      user_id -> e(socket.assigns, :media, :creator_id, nil) == user_id
     end
   end
 
-  defp handle_submission(:new_version, socket, metadata, creators) do
+  defp handle_submission(mode, socket, metadata, creators)
+       when mode in [:edit_metadata, :new_version] do
     errors = MetadataHelpers.validate_metadata(metadata, creators)
 
-    if Enum.empty?(errors) do
-      {:noreply,
-       socket
-       |> assign(submitting: true)
-       |> create_zenodo_new_version(metadata, creators)}
-    else
-      {:noreply, assign(socket, errors: errors)}
+    cond do
+      not deposit_creator?(socket) ->
+        {:noreply,
+         assign_error(socket, l("Only the person who archived this post can change its deposit"))}
+
+      not Enum.empty?(errors) ->
+        {:noreply, assign(socket, errors: errors)}
+
+      mode == :edit_metadata ->
+        {:noreply,
+         socket |> assign(submitting: true) |> update_zenodo_metadata(metadata, creators)}
+
+      true ->
+        {:noreply,
+         socket |> assign(submitting: true) |> create_zenodo_new_version(metadata, creators)}
     end
   end
 
@@ -629,16 +633,17 @@ defmodule Bonfire.OpenScience.ZenodoMetadataFormLive do
           merged_metadata = Map.merge(existing_metadata, full_metadata)
           Bonfire.Files.Media.update(current_user, media, %{metadata: merged_metadata})
 
-        nil ->
-          # Create new media record
-          doi_url = zenodo_info[:doi] || e(updated_deposit, "doi_url", nil)
-
-          Bonfire.OpenScience.save_as_attached_media(
-            current_user,
-            doi_url,
-            full_metadata,
-            socket.assigns.object
-          )
+          # unreachable: `deposit_creator?` already refuses a nil media, so there is no record to create here
+          # nil ->
+          #   # Create new media record
+          #   doi_url = zenodo_info[:doi] || e(updated_deposit, "doi_url", nil)
+          #
+          #   Bonfire.OpenScience.save_as_attached_media(
+          #     current_user,
+          #     doi_url,
+          #     full_metadata,
+          #     socket.assigns.object
+          #   )
       end
     else
       {:error, reason} ->

@@ -239,20 +239,26 @@ defmodule Bonfire.OpenScience.ORCID do
     with {:ok, %{"person" => _} = fresh_data} <-
            fetch_orcid_data(orcid_user_media, "record") |> debug("reccord"),
          existing_data = e(orcid_user_media, :metadata, "orcid", nil),
+         # fresh_data is fetched from ORCID (not user input), so refreshing a Media shared by canonical URL is not a user write
          {:ok, orcid_user_media} <-
-           Bonfire.Files.Media.update(user, orcid_user_media, %{
-             metadata:
-               Map.merge(
-                 e(orcid_user_media, :metadata, %{}),
-                 %{
-                   "orcid" =>
-                     Map.merge(
-                       if(is_map(existing_data), do: existing_data, else: %{}),
-                       fresh_data
-                     )
-                 }
-               )
-           }) do
+           Bonfire.Files.Media.update(
+             user,
+             orcid_user_media,
+             %{
+               metadata:
+                 Map.merge(
+                   e(orcid_user_media, :metadata, %{}),
+                   %{
+                     "orcid" =>
+                       Map.merge(
+                         if(is_map(existing_data), do: existing_data, else: %{}),
+                         fresh_data
+                       )
+                   }
+                 )
+             },
+             skip_boundary_check: true
+           ) do
       [orcid_user_media]
     else
       e ->

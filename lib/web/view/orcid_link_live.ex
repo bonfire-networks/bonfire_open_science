@@ -71,8 +71,8 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
   end
 
   def handle_event("submit_orcid", %{"orcid_id" => orcid_id} = params, socket) do
-    # NOTE: this should also work for guests, when invoked without LiveView via the live handler fallback
-    current_user = current_user(socket)
+    # the ORCID is only ever set on the signed-in user's own creator entry
+    current_user = current_user_required!(socket)
 
     case ORCID.validate(orcid_id) do
       {:ok, validated_orcid} ->
@@ -85,13 +85,10 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
                )
                |> from_ok())
 
-        user_id = params["user_id"] || id(current_user)
-
         case update_doi_metadata_with_orcid(
                socket,
                object,
-               user_id,
-               params["name"],
+               id(current_user),
                validated_orcid
              ) do
           {:ok, _result} ->
@@ -130,7 +127,7 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
   # Helper functions
 
   # Updates the DOI metadata in Zenodo with the user's ORCID
-  defp update_doi_metadata_with_orcid(socket, object, user_id, name, orcid_id) do
+  defp update_doi_metadata_with_orcid(socket, object, user_id, orcid_id) do
     current_user = current_user(socket)
 
     debug({current_user, orcid_id, user_id}, "Starting DOI metadata update with ORCID")
@@ -150,7 +147,7 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
              api_type
            ),
          {:ok, updated_creators} <-
-           creators_with_updated_orcid(working_deposit_info, user_id, name, orcid_id),
+           creators_with_updated_orcid(working_deposit_info, user_id, orcid_id),
          {:ok, result} <-
            Zenodo.handle_zenodo_edit_workflow(
              working_deposit_info,
@@ -165,8 +162,9 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
     end
   end
 
-  # Update the creators list with the new ORCID for the given user_id
-  defp creators_with_updated_orcid(deposit_info, user_id, name, orcid_id) do
+  # Update the creators list with the new ORCID for the entry of the given user_id only
+  # TODO: let a co-author listed only by name (no account, or no `id` on their entry) attach their ORCID, once they prove they own it by signing in with ORCID
+  defp creators_with_updated_orcid(deposit_info, user_id, orcid_id) do
     current_creators = e(deposit_info, "metadata", "creators", [])
 
     debug(
@@ -177,7 +175,7 @@ defmodule Bonfire.OpenScience.Web.OrcidLinkLive do
     # Track if any creator was updated while mapping
     {updated_creators, updated?} =
       Enum.map_reduce(current_creators, false, fn creator, acc_updated? ->
-        if creator["id"] == user_id or creator["name"] == name do
+        if creator["id"] == user_id do
           {Map.put(creator, "orcid", orcid_id), true}
         else
           {creator, acc_updated?}

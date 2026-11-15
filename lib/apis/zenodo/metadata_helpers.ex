@@ -313,7 +313,7 @@ defmodule Bonfire.OpenScience.Zenodo.MetadataHelpers do
 
       true ->
         # Ensure we have deposit_id, extracting from DOI if needed
-        fixed_zenodo_info = MetadataHelpers.ensure_deposit_id(zenodo_info)
+        fixed_zenodo_info = ensure_deposit_id(zenodo_info)
 
         if is_nil(fixed_zenodo_info[:deposit_id]) do
           error(
